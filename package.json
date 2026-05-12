@@ -6,7 +6,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "build:core": "pnpm --filter seo-auditor run build",
-    "build:cli": "pnpm --filter seo-audit-cli run build",
+    "build:cli": "pnpm --filter seo-audit run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",

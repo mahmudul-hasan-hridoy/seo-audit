@@ -26,7 +26,7 @@ const ALL_ANALYZERS: AnalyzerName[] = [
   'schema',
 ];
 
-const DEFAULT_USER_AGENT = 'seo-auditor/0.1.0 (+https://github.com/your-org/seo-auditor)';
+const DEFAULT_USER_AGENT = 'seo-auditor/0.1.0 (+https://github.com/mahmudul-hasan-hridoy/seo-audit)';
 
 /**
  * Events emitted by the Auditor during a run.

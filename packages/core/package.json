@@ -1,7 +1,7 @@
 {
   "name": "seo-auditor",
   "version": "0.1.0",
-  "description": "Professional-grade SEO site audit tool — library and CLI",
+  "description": "Professional-grade SEO site audit tool — programmatic library for crawling and auditing websites",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,8 +19,20 @@
     "build": "tsc -p tsconfig.json",
     "build:watch": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mahmudul-hasan-hridoy/seo-audit.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/mahmudul-hasan-hridoy/seo-audit#readme",
+  "bugs": {
+    "url": "https://github.com/mahmudul-hasan-hridoy/seo-audit/issues"
+  },
+  "author": "Mahmudul Hasan",
+  "license": "MIT",
   "dependencies": {
     "linkedom": "^0.18.0",
     "p-limit": "^6.0.0",
@@ -42,6 +54,8 @@
     "audit",
     "crawler",
     "performance",
-    "cli"
+    "technical-seo",
+    "site-audit",
+    "accessibility"
   ]
 }

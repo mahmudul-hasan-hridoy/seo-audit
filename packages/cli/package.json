@@ -1,7 +1,7 @@
 {
-  "name": "seo-audit-cli",
+  "name": "seo-audit",
   "version": "0.1.0",
-  "description": "CLI for seo-auditor — terminal-first SEO site auditing",
+  "description": "Professional-grade SEO site audit CLI — crawl and audit any website from the terminal",
   "type": "module",
   "bin": {
     "seo-audit": "./dist/index.js"
@@ -16,8 +16,20 @@
     "build:watch": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "pnpm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mahmudul-hasan-hridoy/seo-audit.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/mahmudul-hasan-hridoy/seo-audit#readme",
+  "bugs": {
+    "url": "https://github.com/mahmudul-hasan-hridoy/seo-audit/issues"
+  },
+  "author": "Mahmudul Hasan",
+  "license": "MIT",
   "dependencies": {
     "chalk": "^5.3.0",
     "cli-table3": "^0.6.3",
@@ -33,5 +45,14 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "keywords": [
+    "seo",
+    "audit",
+    "cli",
+    "crawler",
+    "performance",
+    "technical-seo",
+    "site-audit"
+  ]
 }

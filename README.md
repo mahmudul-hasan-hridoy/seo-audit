@@ -7,7 +7,7 @@ A professional-grade, open-source SEO site audit tool built in TypeScript. Crawl
 | Package | Description |
 |---|---|
 | [`seo-auditor`](./packages/core) | Node.js library — use programmatically in your own tools, CI pipelines, or scripts |
-| [`seo-audit-cli`](./packages/cli) | CLI tool `seo-audit` — run audits straight from the terminal |
+| [`seo-audit`](./packages/cli) | CLI tool `seo-audit` — run audits straight from the terminal |
 
 ## Monorepo structure
 
@@ -28,7 +28,7 @@ A professional-grade, open-source SEO site audit tool built in TypeScript. Crawl
 
 ```bash
 # Install globally
-npm install -g seo-audit-cli
+npm install -g seo-audit
 
 # Audit a site
 seo-audit run https://example.com
