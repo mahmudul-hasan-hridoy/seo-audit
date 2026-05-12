@@ -13,164 +13,489 @@ export class HtmlFormatter {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SEO Audit — ${this.esc(report.siteUrl)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --border: #2a2d3d;
-      --text: #e2e8f0;
-      --muted: #8892a4;
-      --error: #f87171;
-      --warning: #fbbf24;
-      --pass: #34d399;
-      --info: #60a5fa;
-      --accent: #818cf8;
+      --bg:        #f7f7f5;
+      --surface:   #ffffff;
+      --surface-2: #f0f0ec;
+      --border:    #e5e5e0;
+      --text:      #1a1a18;
+      --muted:     #8a8a82;
+      --subtle:    #c4c4bc;
+
+      --error:     #c0392b;
+      --error-bg:  #fdf2f1;
+      --warning:   #b45309;
+      --warning-bg:#fefbf0;
+      --pass:      #1a7a4a;
+      --pass-bg:   #f0faf5;
+      --info:      #2563eb;
+      --info-bg:   #f0f5ff;
+
+      --grade-a:   #1a7a4a;
+      --grade-b:   #2563eb;
+      --grade-c:   #b45309;
+      --grade-d:   #c2410c;
+      --grade-f:   #c0392b;
+
+      --radius-sm: 4px;
+      --radius:    8px;
+      --radius-lg: 12px;
+
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow:    0 2px 8px rgba(0,0,0,0.08);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
-    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
-    header { margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
-    header h1 { font-size: 1.5rem; color: var(--accent); }
-    header p { color: var(--muted); font-size: 0.875rem; margin-top: 0.25rem; }
-    .score-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin-bottom: 2rem; display: flex; gap: 2rem; align-items: center; }
-    .score-circle { width: 100px; height: 100px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
-    .score-circle .score { font-size: 2rem; }
-    .score-circle .grade { font-size: 1rem; opacity: 0.8; }
-    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; flex: 1; }
-    .summary-item { background: var(--bg); border-radius: 8px; padding: 1rem; text-align: center; }
-    .summary-item .count { font-size: 1.75rem; font-weight: 700; }
-    .summary-item .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-    .err { color: var(--error); } .warn { color: var(--warning); } .pass { color: var(--pass); } .info-c { color: var(--info); }
-    h2 { font-size: 1.25rem; margin-bottom: 1rem; color: var(--text); }
-    .issues-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; margin-bottom: 2rem; font-size: 0.875rem; }
-    .issues-table th { padding: 0.75rem 1rem; text-align: left; background: var(--bg); color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
-    .issues-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-    .issues-table tr:last-child td { border-bottom: none; }
-    .badge { display: inline-block; padding: 0.2em 0.6em; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-    .badge-error { background: rgba(248,113,113,0.15); color: var(--error); }
-    .badge-warning { background: rgba(251,191,36,0.15); color: var(--warning); }
-    .badge-info { background: rgba(96,165,250,0.15); color: var(--info); }
-    .page-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem; }
-    .page-card-header { padding: 1rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; }
-    .page-card-header:hover { background: rgba(255,255,255,0.03); }
-    .page-url { font-size: 0.875rem; color: var(--accent); flex: 1; word-break: break-all; }
-    .page-score { font-size: 0.875rem; font-weight: 700; }
-    .page-details { padding: 0 1rem 1rem; display: none; }
-    .page-card.open .page-details { display: block; }
-    .fix { margin-top: 0.25rem; font-size: 0.8rem; color: var(--muted); }
-    .meta { font-size: 0.75rem; color: var(--muted); display: flex; gap: 1rem; margin-bottom: 0.75rem; }
-    footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; text-align: center; }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Layout ─────────────────────────────────────────────── */
+    .wrap { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+    /* ─── Header ─────────────────────────────────────────────── */
+    .site-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .site-header__eyebrow {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .site-header__url {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      word-break: break-all;
+    }
+    .site-header__meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+      display: flex;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .site-header__meta span { display: flex; align-items: center; gap: 0.3rem; }
+
+    /* ─── Score Card ─────────────────────────────────────────── */
+    .score-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2rem;
+      align-items: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .score-ring {
+      position: relative;
+      width: 88px;
+      height: 88px;
+      flex-shrink: 0;
+    }
+    .score-ring svg {
+      transform: rotate(-90deg);
+      width: 88px;
+      height: 88px;
+    }
+    .score-ring__track { fill: none; stroke: var(--border); stroke-width: 5; }
+    .score-ring__fill  { fill: none; stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset 0.8s ease; }
+    .score-ring__label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .score-ring__num   { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+    .score-ring__grade { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-top: 1px; }
+
+    .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+    .stat {
+      background: var(--surface-2);
+      border-radius: var(--radius);
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat__num   { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+    .stat__label { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 0.35rem; }
+    .stat--error   .stat__num { color: var(--error); }
+    .stat--warning .stat__num { color: var(--warning); }
+    .stat--pass    .stat__num { color: var(--pass); }
+    .stat--info    .stat__num { color: var(--info); }
+
+    /* ─── Section Heading ────────────────────────────────────── */
+    .section-heading {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 2rem 0 0.75rem;
+    }
+
+    /* ─── Issues Table ───────────────────────────────────────── */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow-sm);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    thead th {
+      padding: 0.65rem 1rem;
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--surface-2); }
+
+    .issue-title  { font-weight: 500; color: var(--text); }
+    .issue-desc   { font-size: 0.8rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.5; }
+    .issue-fix    { font-size: 0.78rem; color: var(--info); margin-top: 0.3rem; }
+    .issue-cat    { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+
+    /* ─── Badge ──────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.2em 0.55em;
+      border-radius: var(--radius-sm);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .badge-error   { background: var(--error-bg);   color: var(--error);   }
+    .badge-warning { background: var(--warning-bg); color: var(--warning); }
+    .badge-pass    { background: var(--pass-bg);    color: var(--pass);    }
+    .badge-info    { background: var(--info-bg);    color: var(--info);    }
+
+    /* ─── Page Cards ─────────────────────────────────────────── */
+    .page-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .page-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.15s ease;
+    }
+    .page-card:hover { box-shadow: var(--shadow); }
+    .page-card__header {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .page-card__url {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text);
+      word-break: break-all;
+    }
+    .page-card__score {
+      font-size: 0.8rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .page-card__toggle {
+      color: var(--subtle);
+      font-size: 0.75rem;
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+    .page-card__header:hover .page-card__toggle { color: var(--muted); }
+
+    .page-card__chevron {
+      display: inline-block;
+      transition: transform 0.2s ease;
+      margin-left: 0.25rem;
+    }
+    .page-card.open .page-card__chevron { transform: rotate(180deg); }
+
+    .page-card__body {
+      display: none;
+      padding: 0 1.25rem 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+    .page-card.open .page-card__body { display: block; }
+
+    .page-meta {
+      display: flex;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      padding: 0.75rem 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .page-meta span { display: flex; align-items: center; gap: 0.3rem; }
+
+    .no-issues {
+      font-size: 0.85rem;
+      color: var(--pass);
+      padding: 0.5rem 0;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────── */
+    .site-footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.78rem;
+      color: var(--subtle);
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    /* ─── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .wrap { padding: 1.5rem 1rem 3rem; }
+      .score-card { grid-template-columns: 1fr; gap: 1.25rem; }
+      .stat-row { grid-template-columns: repeat(2, 1fr); }
+      .site-header { flex-direction: column; }
+      .page-card__header { grid-template-columns: 1fr auto; }
+      .page-card__score { display: none; }
+      thead th:nth-child(3) { display: none; }
+      tbody td:nth-child(3) { display: none; }
+    }
   </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>🔍 SEO Audit Report</h1>
-    <p>${this.esc(report.siteUrl)} &nbsp;·&nbsp; ${report.totalPages} pages &nbsp;·&nbsp; ${report.auditedAt.toLocaleDateString()} &nbsp;·&nbsp; ${(report.durationMs / 1000).toFixed(1)}s</p>
+<div class="wrap">
+
+  <!-- Header -->
+  <header class="site-header">
+    <div>
+      <div class="site-header__eyebrow">SEO Audit Report</div>
+      <div class="site-header__url">${this.esc(report.siteUrl)}</div>
+      <div class="site-header__meta">
+        <span>${report.totalPages} pages crawled</span>
+        <span>${report.auditedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+        <span>${(report.durationMs / 1000).toFixed(1)}s</span>
+      </div>
+    </div>
   </header>
 
+  <!-- Score Card -->
   <div class="score-card">
-    <div class="score-circle" style="background: ${this.gradeColor(report.grade)}22; border: 3px solid ${this.gradeColor(report.grade)}">
-      <span class="score" style="color:${this.gradeColor(report.grade)}">${report.siteScore}</span>
-      <span class="grade" style="color:${this.gradeColor(report.grade)}">${report.grade}</span>
-    </div>
-    <div class="summary-grid">
-      <div class="summary-item"><div class="count err">${report.summary.errors}</div><div class="label">Errors</div></div>
-      <div class="summary-item"><div class="count warn">${report.summary.warnings}</div><div class="label">Warnings</div></div>
-      <div class="summary-item"><div class="count pass">${report.summary.passes}</div><div class="label">Passed</div></div>
-      <div class="summary-item"><div class="count info-c">${report.summary.info}</div><div class="label">Info</div></div>
+    ${this.renderScoreRing(report.siteScore, report.grade)}
+    <div class="stat-row">
+      <div class="stat stat--error">
+        <div class="stat__num">${report.summary.errors}</div>
+        <div class="stat__label">Errors</div>
+      </div>
+      <div class="stat stat--warning">
+        <div class="stat__num">${report.summary.warnings}</div>
+        <div class="stat__label">Warnings</div>
+      </div>
+      <div class="stat stat--pass">
+        <div class="stat__num">${report.summary.passes}</div>
+        <div class="stat__label">Passed</div>
+      </div>
+      <div class="stat stat--info">
+        <div class="stat__num">${report.summary.info}</div>
+        <div class="stat__label">Info</div>
+      </div>
     </div>
   </div>
 
+  <!-- Top Issues -->
   ${report.topIssues.length > 0 ? this.renderTopIssues(report.topIssues) : ''}
 
-  <h2>Page Results</h2>
-  ${report.pages.map((p) => this.renderPage(p)).join('\n')}
+  <!-- Per-page Results -->
+  <div class="section-heading">Page Results</div>
+  <div class="page-list">
+    ${report.pages.map((p) => this.renderPage(p)).join('\n')}
+  </div>
 
-  <footer>Generated by <strong>seo-auditor</strong> &nbsp;·&nbsp; ${new Date().toISOString()}</footer>
+  <footer class="site-footer">
+    <span>Generated by <strong>seo-auditor</strong></span>
+    <span>${new Date().toISOString()}</span>
+  </footer>
 </div>
+
 <script>
-  document.querySelectorAll('.page-card-header').forEach(h => {
-    h.addEventListener('click', () => h.closest('.page-card').classList.toggle('open'));
+  document.querySelectorAll('.page-card__header').forEach(function(header) {
+    header.addEventListener('click', function() {
+      header.closest('.page-card').classList.toggle('open');
+    });
   });
 </script>
 </body>
 </html>`;
   }
 
+  // ─── SVG ring score indicator ─────────────────────────────────────────────
+
+  private renderScoreRing(score: number, grade: string): string {
+    const r = 37;
+    const circ = 2 * Math.PI * r;
+    const offset = circ * (1 - score / 100);
+    const color = this.gradeColor(grade);
+    return `<div class="score-ring">
+      <svg viewBox="0 0 88 88">
+        <circle class="score-ring__track" cx="44" cy="44" r="${r}"/>
+        <circle class="score-ring__fill"
+          cx="44" cy="44" r="${r}"
+          stroke="${color}"
+          stroke-dasharray="${circ.toFixed(2)}"
+          stroke-dashoffset="${offset.toFixed(2)}"/>
+      </svg>
+      <div class="score-ring__label">
+        <span class="score-ring__num" style="color:${color}">${score}</span>
+        <span class="score-ring__grade">${grade}</span>
+      </div>
+    </div>`;
+  }
+
+  // ─── Top issues table ─────────────────────────────────────────────────────
+
   private renderTopIssues(issues: Issue[]): string {
     const rows = issues
       .map(
-        (i) => `<tr>
-        <td><span class="badge badge-${i.severity}">${this.severityLabel(i.severity)}</span></td>
-        <td><strong>${this.esc(i.title)}</strong><div class="fix">${this.esc(i.description.slice(0, 120))}${i.description.length > 120 ? '…' : ''}</div></td>
-        <td style="font-size:0.8rem;color:var(--muted)">${this.esc(i.category)}</td>
+        (i) => `
+      <tr>
+        <td style="width:90px"><span class="badge badge-${i.severity}">${this.severityDot(i.severity)} ${this.severityLabel(i.severity)}</span></td>
+        <td>
+          <div class="issue-title">${this.esc(i.title)}</div>
+          <div class="issue-desc">${this.esc(i.description.length > 130 ? i.description.slice(0, 130) + '…' : i.description)}</div>
+        </td>
+        <td><span class="issue-cat">${this.esc(i.category)}</span></td>
       </tr>`,
       )
-      .join('\n');
+      .join('');
 
-    return `<h2>Top Issues</h2>
-    <table class="issues-table">
-      <thead><tr><th>Severity</th><th>Issue</th><th>Category</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+    return `
+    <div class="section-heading">Top Issues</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Issue</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
   }
+
+  // ─── Per-page card ────────────────────────────────────────────────────────
 
   private renderPage(page: PageAudit): string {
     const actionable = page.issues.filter(
       (i) => i.severity === 'error' || i.severity === 'warning',
     );
-    const scoreColor = this.gradeColor(page.grade);
+    const color = this.gradeColor(page.grade);
 
     const issueRows = actionable
       .map(
-        (i) => `<tr>
-        <td><span class="badge badge-${i.severity}">${this.severityLabel(i.severity)}</span></td>
+        (i) => `
+      <tr>
+        <td style="width:90px"><span class="badge badge-${i.severity}">${this.severityDot(i.severity)} ${this.severityLabel(i.severity)}</span></td>
         <td>
-          <strong>${this.esc(i.title)}</strong>
-          <div class="fix">${this.esc(i.description)}</div>
-          ${i.fix ? `<div class="fix">💡 ${this.esc(i.fix)}</div>` : ''}
+          <div class="issue-title">${this.esc(i.title)}</div>
+          <div class="issue-desc">${this.esc(i.description)}</div>
+          ${i.fix ? `<div class="issue-fix">→ ${this.esc(i.fix)}</div>` : ''}
         </td>
       </tr>`,
       )
-      .join('\n');
+      .join('');
 
     return `<div class="page-card">
-    <div class="page-card-header">
-      <span class="page-url">${this.esc(page.url)}</span>
-      <span class="page-score" style="color:${scoreColor}">${page.score}/100 (${page.grade})</span>
-      <span style="color:var(--muted);font-size:0.8rem">${actionable.length} issues ▾</span>
+    <div class="page-card__header">
+      <span class="page-url page-card__url">${this.esc(page.url)}</span>
+      <span class="page-card__score" style="color:${color}">${page.score}/100 &nbsp;<span style="color:var(--subtle);font-weight:400">${page.grade}</span></span>
+      <span class="page-card__toggle">${actionable.length} issue${actionable.length !== 1 ? 's' : ''}<span class="page-card__chevron">▾</span></span>
     </div>
-    <div class="page-details">
-      <div class="meta">
-        <span>Status: ${page.statusCode}</span>
-        <span>Load: ${page.loadTimeMs}ms</span>
-        <span>Audited: ${page.auditedAt.toLocaleTimeString()}</span>
+    <div class="page-card__body">
+      <div class="page-meta">
+        <span>Status ${page.statusCode}</span>
+        <span>${page.loadTimeMs} ms</span>
+        <span>${page.auditedAt.toLocaleTimeString()}</span>
       </div>
-      ${actionable.length > 0 ? `<table class="issues-table"><thead><tr><th>Sev</th><th>Issue</th></tr></thead><tbody>${issueRows}</tbody></table>` : '<p style="color:var(--pass);font-size:0.875rem">✅ No errors or warnings found.</p>'}
+      ${
+        actionable.length > 0
+          ? `<div class="table-wrap"><table><thead><tr><th>Severity</th><th>Issue</th></tr></thead><tbody>${issueRows}</tbody></table></div>`
+          : '<div class="no-issues">✓ No errors or warnings found.</div>'
+      }
     </div>
   </div>`;
   }
 
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
   private gradeColor(grade: string): string {
     const map: Record<string, string> = {
-      A: '#34d399',
-      B: '#60a5fa',
-      C: '#fbbf24',
-      D: '#fb923c',
-      F: '#f87171',
+      A: '#1a7a4a',
+      B: '#2563eb',
+      C: '#b45309',
+      D: '#c2410c',
+      F: '#c0392b',
     };
-    return map[grade] ?? '#8892a4';
+    return map[grade] ?? '#8a8a82';
   }
 
   private severityLabel(s: string): string {
     const map: Record<string, string> = {
-      error: '❌ Error',
-      warning: '⚠️ Warn',
-      info: 'ℹ️ Info',
-      pass: '✅ Pass',
+      error: 'Error',
+      warning: 'Warning',
+      info: 'Info',
+      pass: 'Pass',
     };
     return map[s] ?? s;
+  }
+
+  private severityDot(s: string): string {
+    const map: Record<string, string> = {
+      error: '●',
+      warning: '●',
+      info: '●',
+      pass: '●',
+    };
+    return map[s] ?? '●';
   }
 
   private esc(s: string): string {

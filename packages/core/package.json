@@ -1,6 +1,6 @@
 {
   "name": "seo-auditor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Professional-grade SEO site audit tool — programmatic library for crawling and auditing websites",
   "type": "module",
   "main": "./dist/index.js",

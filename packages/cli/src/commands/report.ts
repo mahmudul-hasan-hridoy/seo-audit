@@ -14,10 +14,7 @@ export interface ReportCommandOptions {
  * Implementation of the `seo-audit report <file>` command.
  * Reads a saved JSON audit report and converts it to the requested format.
  */
-export async function runReportCommand(
-  file: string,
-  opts: ReportCommandOptions,
-): Promise<void> {
+export async function runReportCommand(file: string, opts: ReportCommandOptions): Promise<void> {
   const inputPath = resolve(file);
 
   let raw: string;
