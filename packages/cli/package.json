@@ -1,0 +1,37 @@
+{
+  "name": "seo-audit-cli",
+  "version": "0.1.0",
+  "description": "CLI for seo-auditor — terminal-first SEO site auditing",
+  "type": "module",
+  "bin": {
+    "seo-audit": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.3",
+    "commander": "^12.0.0",
+    "conf": "^13.0.0",
+    "open": "^10.1.0",
+    "ora": "^8.0.0",
+    "seo-auditor": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

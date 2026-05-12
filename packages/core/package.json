@@ -1,0 +1,47 @@
+{
+  "name": "seo-auditor",
+  "version": "0.1.0",
+  "description": "Professional-grade SEO site audit tool — library and CLI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "linkedom": "^0.18.0",
+    "p-limit": "^6.0.0",
+    "robots-parser": "^3.0.1",
+    "undici": "^6.10.0"
+  },
+  "optionalDependencies": {
+    "puppeteer": "^22.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "seo",
+    "audit",
+    "crawler",
+    "performance",
+    "cli"
+  ]
+}

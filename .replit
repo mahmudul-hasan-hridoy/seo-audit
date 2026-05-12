@@ -1,0 +1,10 @@
+modules = ["nodejs-20"]
+[agent]
+expertMode = true
+
+[nix]
+packages = ["unzipNLS"]
+
+[[ports]]
+localPort = 24678
+externalPort = 80
