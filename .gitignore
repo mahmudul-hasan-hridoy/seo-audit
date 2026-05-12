@@ -1,9 +1,42 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Build outputs
 dist/
+build/
 *.tsbuildinfo
+
+# Test & coverage
+coverage/
+.vitest-cache/
+
+# Env & secrets
 .env
 .env.*
-coverage/
-reports/
-*.log
+!.env.example
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Temp
+tmp/
+temp/
+.cache/
+
+# Package manager locks (keep pnpm's)
+package-lock.json
+yarn.lock
