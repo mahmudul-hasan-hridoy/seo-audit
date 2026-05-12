@@ -9,10 +9,10 @@ A command-line tool for professional SEO site auditing. Crawls your entire websi
 
 ```bash
 # Global install (recommended)
-npm install -g seo-audit
+npm install -g @mahmudul-hasan/seo-audit
 
 # Or run without installing via npx
-npx seo-audit run https://example.com
+npx @mahmudul-hasan/seo-audit run https://example.com
 ```
 
 **Requirements:** Node.js 18+

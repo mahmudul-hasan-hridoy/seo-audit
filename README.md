@@ -28,7 +28,7 @@ A professional-grade, open-source SEO site audit tool built in TypeScript. Crawl
 
 ```bash
 # Install globally
-npm install -g seo-audit
+npm install -g @mahmudul-hasan/seo-audit
 
 # Audit a site
 seo-audit run https://example.com

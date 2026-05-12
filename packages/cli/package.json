@@ -1,5 +1,5 @@
 {
-  "name": "seo-audit",
+  "name": "@mahmudul-hasan/seo-audit",
   "version": "0.1.0",
   "description": "Professional-grade SEO site audit CLI — crawl and audit any website from the terminal",
   "type": "module",
