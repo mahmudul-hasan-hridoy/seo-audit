@@ -1,43 +1,26 @@
 # seo-auditor
 
-A professional-grade, open-source SEO site audit tool built in TypeScript. Crawls your entire website, analyses every page across eight SEO dimensions, scores each page 0–100, and produces reports in JSON, HTML, or Markdown.
+A TypeScript SEO site audit tool. Give it a URL, it crawls the site, runs eight analyzers on every page, scores each page 0–100, and returns a structured report.
 
 ## Packages
 
-| Package | Description |
-|---|---|
-| [`seo-auditor`](./packages/core) | Node.js library — use programmatically in your own tools, CI pipelines, or scripts |
-| [`seo-audit`](./packages/cli) | CLI tool `seo-audit` — run audits straight from the terminal |
-
-## Monorepo structure
-
-```
-.
-├── packages/
-│   ├── core/          # seo-auditor npm library
-│   └── cli/           # seo-audit CLI tool
-├── package.json       # pnpm workspace root
-├── pnpm-workspace.yaml
-├── tsconfig.base.json
-└── vitest.config.ts
-```
+| Package | npm | Description |
+|---|---|---|
+| [`seo-auditor`](./packages/core) | `npm install seo-auditor` | Node.js library for programmatic use |
+| [`@mahmudul-hasan/seo-scan`](./packages/cli) | `npm install -g @mahmudul-hasan/seo-scan` | CLI tool (`seo-audit` command) |
 
 ## Quick start
 
-### CLI (recommended for most users)
+**CLI**
 
 ```bash
-# Install globally
-npm install -g @mahmudul-hasan/seo-audit
+npm install -g @mahmudul-hasan/seo-scan
 
-# Audit a site
 seo-audit run https://example.com
-
-# Save an HTML report and open it
 seo-audit run https://example.com --format html --open
 ```
 
-### Library (for programmatic use)
+**Library**
 
 ```bash
 npm install seo-auditor
@@ -46,56 +29,52 @@ npm install seo-auditor
 ```ts
 import { Auditor } from 'seo-auditor';
 
-const auditor = new Auditor({ url: 'https://example.com', maxPages: 50 });
-const report = await auditor.run();
-console.log(`Score: ${report.siteScore}/100 (${report.grade})`);
-```
-
-## Development
-
-This project uses [pnpm workspaces](https://pnpm.io/workspaces).
-
-```bash
-# Install dependencies
-pnpm install
-
-# Build both packages
-pnpm build
-
-# Run all tests
-pnpm test
-
-# Lint
-pnpm lint
+const report = await new Auditor({ url: 'https://example.com' }).run();
+console.log(`${report.siteScore}/100 (${report.grade})`);
 ```
 
 ## Analyzers
 
-Eight built-in analyzers run in parallel on every page:
+Eight analyzers run in parallel on every page:
 
 | Analyzer | Checks |
 |---|---|
-| `onpage` | Title tag, meta description, heading structure (H1–H6), duplicate titles |
-| `technical` | HTTPS, canonical tags, robots meta, redirect chains, X-Robots-Tag headers |
-| `performance` | Load time, page size, resource hints, render-blocking resources |
+| `onpage` | Title tag, meta description, H1, heading hierarchy, lang attribute |
+| `technical` | HTTPS, HSTS, canonical tag, robots meta/header, redirect chains, hreflang |
+| `performance` | Load time, HTML size, compression, render-blocking resources, cache headers |
 | `images` | Alt text, explicit dimensions (CLS), lazy loading, next-gen formats |
-| `links` | Internal link count, anchor text quality, too many links per page |
-| `content` | Word count, readability, duplicate/thin content detection |
-| `mobile` | Viewport meta tag, font scaling, tap target sizes |
-| `schema` | JSON-LD structured data, Open Graph tags, Twitter Card tags |
+| `links` | Internal link count, anchor text quality, total link count |
+| `content` | Word count, thin content, readability (Flesch score) |
+| `mobile` | Viewport meta, font scaling, tap target sizes |
+| `schema` | JSON-LD structured data, Open Graph tags, Twitter Card |
 
 ## Scoring
 
-Every page starts at **100 points**. Deductions per finding:
+Each page starts at **100**. Issues deduct points:
 
 | Severity | Deduction |
 |---|---|
 | Error | −15 pts |
 | Warning | −5 pts |
 | Info | −1 pt |
-| Pass | 0 pts |
 
-The site score is the average across all pages. Grades: **A** (90+) · **B** (75+) · **C** (60+) · **D** (40+) · **F** (<40).
+The site score is a weighted average across pages — lower-scoring pages carry more weight to surface critical problems. Grades: **A** (90+) · **B** (75+) · **C** (60+) · **D** (40+) · **F** (<40).
+
+## Development
+
+```bash
+pnpm install
+pnpm build    # build both packages
+pnpm test     # run all tests
+```
+
+## Repo structure
+
+```
+packages/
+  core/   → seo-auditor (library)
+  cli/    → @mahmudul-hasan/seo-scan (CLI)
+```
 
 ## License
 
