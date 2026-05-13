@@ -205,6 +205,27 @@ export class HtmlFormatter {
     .badge-pass    { background: var(--pass-bg);    color: var(--pass);    }
     .badge-info    { background: var(--info-bg);    color: var(--info);    }
 
+    /* ─── Severity Icons ─────────────────────────────────────── */
+    .sev-icons {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      flex-shrink: 0;
+    }
+    .sev-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.15em 0.4em;
+      border-radius: var(--radius-sm);
+      white-space: nowrap;
+    }
+    .sev-icon--error   { background: var(--error-bg);   color: var(--error);   }
+    .sev-icon--warning { background: var(--warning-bg); color: var(--warning); }
+    .sev-icon--info    { background: var(--info-bg);    color: var(--info);    }
+
     /* ─── Page Cards ─────────────────────────────────────────── */
     .page-list { display: flex; flex-direction: column; gap: 0.5rem; }
     .page-card {
@@ -218,9 +239,9 @@ export class HtmlFormatter {
     .page-card:hover { box-shadow: var(--shadow); }
     .page-card__header {
       display: grid;
-      grid-template-columns: 1fr auto auto;
+      grid-template-columns: 1fr auto auto auto;
       align-items: center;
-      gap: 1rem;
+      gap: 0.75rem;
       padding: 1rem 1.25rem;
       cursor: pointer;
       user-select: none;
@@ -294,7 +315,7 @@ export class HtmlFormatter {
       .score-card { grid-template-columns: 1fr; gap: 1.25rem; }
       .stat-row { grid-template-columns: repeat(2, 1fr); }
       .site-header { flex-direction: column; }
-      .page-card__header { grid-template-columns: 1fr auto; }
+      .page-card__header { grid-template-columns: 1fr auto auto; }
       .page-card__score { display: none; }
       thead th:nth-child(3) { display: none; }
       tbody td:nth-child(3) { display: none; }
@@ -339,9 +360,6 @@ export class HtmlFormatter {
       </div>
     </div>
   </div>
-
-  <!-- Top Issues -->
-  ${report.topIssues.length > 0 ? this.renderTopIssues(report.topIssues) : ''}
 
   <!-- Per-page Results -->
   <div class="section-heading">Page Results</div>
@@ -389,37 +407,56 @@ export class HtmlFormatter {
     </div>`;
   }
 
-  // ─── Top issues table ─────────────────────────────────────────────────────
+  // ─── Severity icons for page card header ─────────────────────────────────
 
-  private renderTopIssues(issues: Issue[]): string {
-    const rows = issues
-      .map(
-        (i) => `
-      <tr>
-        <td style="width:90px"><span class="badge badge-${i.severity}">${this.severityDot(i.severity)} ${this.severityLabel(i.severity)}</span></td>
-        <td>
-          <div class="issue-title">${this.esc(i.title)}</div>
-          <div class="issue-desc">${this.esc(i.description.length > 130 ? i.description.slice(0, 130) + '…' : i.description)}</div>
-        </td>
-        <td><span class="issue-cat">${this.esc(i.category)}</span></td>
-      </tr>`,
-      )
-      .join('');
+  private renderSeverityIcons(issues: Issue[]): string {
+    const counts: { error: number; warning: number; info: number } = {
+      error: 0,
+      warning: 0,
+      info: 0,
+    };
+    for (const i of issues) {
+      if (i.severity === 'error') counts.error++;
+      else if (i.severity === 'warning') counts.warning++;
+      else if (i.severity === 'info') counts.info++;
+    }
 
-    return `
-    <div class="section-heading">Top Issues</div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Severity</th>
-            <th>Issue</th>
-            <th>Category</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+    const parts: string[] = [];
+    if (counts.error > 0) {
+      parts.push(
+        `<span class="sev-icon sev-icon--error" title="${counts.error} error${counts.error !== 1 ? 's' : ''}">` +
+          `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
+          `<circle cx="5" cy="5" r="4.5" stroke="currentColor"/><path d="M5 3v2.5" stroke="currentColor" stroke-linecap="round"/><circle cx="5" cy="7" r=".5" fill="currentColor"/>` +
+          `</svg>${counts.error}</span>`,
+      );
+    }
+    if (counts.warning > 0) {
+      parts.push(
+        `<span class="sev-icon sev-icon--warning" title="${counts.warning} warning${counts.warning !== 1 ? 's' : ''}">` +
+          `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
+          `<path d="M5 1.5L9 8.5H1L5 1.5Z" stroke="currentColor" stroke-linejoin="round"/><path d="M5 4.5v2" stroke="currentColor" stroke-linecap="round"/><circle cx="5" cy="7.5" r=".4" fill="currentColor"/>` +
+          `</svg>${counts.warning}</span>`,
+      );
+    }
+    if (counts.info > 0) {
+      parts.push(
+        `<span class="sev-icon sev-icon--info" title="${counts.info} info">` +
+          `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
+          `<circle cx="5" cy="5" r="4.5" stroke="currentColor"/><path d="M5 4.5v3" stroke="currentColor" stroke-linecap="round"/><circle cx="5" cy="3" r=".5" fill="currentColor"/>` +
+          `</svg>${counts.info}</span>`,
+      );
+    }
+
+    if (parts.length === 0) {
+      parts.push(
+        `<span class="sev-icon" style="background:var(--pass-bg);color:var(--pass)" title="No issues">` +
+          `<svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
+          `<circle cx="5" cy="5" r="4.5" stroke="currentColor"/><path d="M3 5l1.5 1.5L7 3.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>` +
+          `</svg></span>`,
+      );
+    }
+
+    return `<div class="sev-icons">${parts.join('')}</div>`;
   }
 
   // ─── Per-page card ────────────────────────────────────────────────────────
@@ -447,8 +484,9 @@ export class HtmlFormatter {
     return `<div class="page-card">
     <div class="page-card__header">
       <span class="page-url page-card__url">${this.esc(page.url)}</span>
+      ${this.renderSeverityIcons(page.issues)}
       <span class="page-card__score" style="color:${color}">${page.score}/100 &nbsp;<span style="color:var(--subtle);font-weight:400">${page.grade}</span></span>
-      <span class="page-card__toggle">${actionable.length} issue${actionable.length !== 1 ? 's' : ''}<span class="page-card__chevron">▾</span></span>
+      <span class="page-card__toggle"><span class="page-card__chevron">▾</span></span>
     </div>
     <div class="page-card__body">
       <div class="page-meta">

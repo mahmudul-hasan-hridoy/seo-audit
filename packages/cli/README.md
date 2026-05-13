@@ -112,56 +112,6 @@ Specify a custom path with `--config ./path/to/config.ts`.
 
 ---
 
-## CI / CD
-
-### GitHub Actions
-
-```yaml
-name: SEO Audit
-on:
-  push:
-    branches: [main]
-
-jobs:
-  audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm install -g @mahmudul-hasan/seo-scan
-      - run: seo-audit run ${{ vars.SITE_URL }} --format json --output ./audit.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: seo-report
-          path: ./audit.json
-```
-
-### Score-gated check
-
-To fail a build on a low score, use the [seo-auditor library](../core/README.md) directly:
-
-```js
-// seo-check.mjs
-import { Auditor } from 'seo-auditor';
-
-const report = await new Auditor({ url: process.env.SITE_URL, maxPages: 50 }).run();
-
-if (report.siteScore < 70) {
-  console.error(`Score ${report.siteScore}/100 is below threshold`);
-  process.exit(1);
-}
-```
-
-### Exit codes
-
-| Code | Meaning |
-|---|---|
-| `0` | Audit completed |
-| `1` | Fatal error (invalid URL, config error) |
-
-A low score does **not** produce a non-zero exit on its own.
-
----
-
 ## Troubleshooting
 
 **Crawl finds very few pages** — Increase `--depth`. If the site requires JavaScript to render links, add `--render-js` (requires `npm install puppeteer`).
