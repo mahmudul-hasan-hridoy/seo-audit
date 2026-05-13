@@ -8,7 +8,8 @@ export type AuditorErrorCode =
   | 'ROBOTS_BLOCKED'
   | 'PARSE_ERROR'
   | 'PUPPETEER_UNAVAILABLE'
-  | 'CONFIG_INVALID';
+  | 'CONFIG_INVALID'
+  | 'NOT_HTML';
 
 /**
  * Typed error class for all auditor-originated errors.

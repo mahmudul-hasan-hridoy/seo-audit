@@ -48,8 +48,8 @@ importers:
         specifier: ^8.0.0
         version: 8.2.0
       seo-auditor:
-        specifier: workspace:*
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1(typescript@5.9.3)
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -1438,6 +1438,10 @@ packages:
     resolution: {integrity: sha512-AcM7dV/5ul4EekoQ29Agm5vri8JNqRyj39o0qpX6vDF2GZrtutZl5RwgD1XnZjiTAfncsJhMI48QQH3sN87YNA==}
     engines: {node: '>=10'}
     hasBin: true
+
+  seo-auditor@0.1.1:
+    resolution: {integrity: sha512-7ov1PpI812iVMWxwbFuawjPnYE2pHOKzUtAPJXjvqFGMP9eDsdpuEqN/jennjxckfQSxFbd2fT2cIouxjczooA==}
+    engines: {node: '>=18'}
 
   shebang-command@2.0.0:
     resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==}
@@ -3144,6 +3148,24 @@ snapshots:
       queue-microtask: 1.2.3
 
   semver@7.8.0: {}
+
+  seo-auditor@0.1.1(typescript@5.9.3):
+    dependencies:
+      linkedom: 0.18.12
+      p-limit: 6.2.0
+      robots-parser: 3.0.1
+      undici: 6.25.0
+    optionalDependencies:
+      puppeteer: 22.15.0(typescript@5.9.3)
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - bufferutil
+      - canvas
+      - react-native-b4a
+      - supports-color
+      - typescript
+      - utf-8-validate
 
   shebang-command@2.0.0:
     dependencies:

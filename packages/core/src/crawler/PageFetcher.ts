@@ -1,5 +1,6 @@
 import { fetch, Agent } from 'undici';
 import { AuditorError } from '../errors.js';
+import { isHtmlContentType } from './urlUtils.js';
 import type { ResolvedAuditConfig } from '../types/index.js';
 
 export interface FetchedPage {
@@ -12,11 +13,18 @@ export interface FetchedPage {
   redirectChain: string[];
 }
 
-const DEFAULT_USER_AGENT = 'seo-auditor/0.1.0 (https://github.com/your-org/seo-auditor)';
+const DEFAULT_USER_AGENT = 'seo-auditor/1.0.0 (https://github.com/mahmudul-hasan-hridoy/seo-audit)';
+const MAX_RETRIES = 3;
+const RETRY_DELAYS_MS = [500, 1000, 2000];
+const RETRYABLE_STATUS_CODES = new Set([429, 502, 503, 504]);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Fetches pages via HTTP (undici) or Puppeteer when renderJs is enabled.
- * Lazy-loads Puppeteer to avoid hard dependency.
+ * Includes automatic retry with exponential backoff for transient failures.
  */
 export class PageFetcher {
   private readonly config: ResolvedAuditConfig;
@@ -30,22 +38,24 @@ export class PageFetcher {
       connectTimeout: config.timeout,
       headersTimeout: config.timeout,
       bodyTimeout: config.timeout,
-      maxRedirections: 5,
+      maxRedirections: 10,
+      keepAliveTimeout: 4000,
+      keepAliveMaxTimeout: 10_000,
     });
   }
 
   /**
-   * Fetch a single page and return its content.
+   * Fetch a single page with automatic retry on transient failures.
    */
   async fetch(url: string): Promise<FetchedPage> {
     if (this.config.renderJs) {
       return this.fetchWithPuppeteer(url);
     }
-    return this.fetchWithUndici(url);
+    return this.fetchWithRetry(url);
   }
 
   /**
-   * Clean up resources (close Puppeteer browser if open).
+   * Release all held resources (Puppeteer browser, HTTP agent).
    */
   async dispose(): Promise<void> {
     if (this.puppeteerBrowser) {
@@ -56,23 +66,90 @@ export class PageFetcher {
     this.agent.destroy();
   }
 
+  // ─── Retry wrapper ───────────────────────────────────────────────────────────
+
+  private async fetchWithRetry(url: string): Promise<FetchedPage> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        const delay = RETRY_DELAYS_MS[attempt - 1] ?? 2000;
+        await sleep(delay);
+      }
+
+      try {
+        const result = await this.fetchWithUndici(url);
+
+        // Retry on known server-side transient errors
+        if (RETRYABLE_STATUS_CODES.has(result.statusCode) && attempt < MAX_RETRIES) {
+          lastError = new Error(`HTTP ${result.statusCode} — will retry`);
+          continue;
+        }
+
+        return result;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+
+        if (err instanceof AuditorError) {
+          // Non-retryable error codes — propagate immediately without retrying
+          if (
+            err.code === 'INVALID_URL' ||
+            err.code === 'ROBOTS_BLOCKED' ||
+            err.code === 'PUPPETEER_UNAVAILABLE' ||
+            err.code === 'NOT_HTML'
+          ) {
+            throw err;
+          }
+          // TIMEOUT and FETCH_FAILED are retryable — fall through
+        }
+
+        if (attempt >= MAX_RETRIES) break;
+      }
+    }
+
+    throw (
+      lastError ??
+      new AuditorError(`Fetch failed after ${MAX_RETRIES} retries: ${url}`, 'FETCH_FAILED', url)
+    );
+  }
+
+  // ─── HTTP fetch via undici ────────────────────────────────────────────────────
+
   private async fetchWithUndici(url: string): Promise<FetchedPage> {
     const start = Date.now();
     const redirectChain: string[] = [];
-    let currentUrl = url;
 
     try {
-      const response = await fetch(currentUrl, {
-        headers: { 'User-Agent': this.config.userAgent || DEFAULT_USER_AGENT },
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': this.config.userAgent || DEFAULT_USER_AGENT,
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Cache-Control': 'no-cache',
+        },
         dispatcher: this.agent,
         redirect: 'follow',
       });
 
       const loadTimeMs = Date.now() - start;
-      const finalUrl = response.url || currentUrl;
+      const finalUrl = response.url || url;
+
+      // Check Content-Type BEFORE reading the body — skip non-HTML resources
+      // (sitemaps, PDFs, images, scripts, fonts, etc.) without consuming bandwidth.
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!isHtmlContentType(contentType)) {
+        // Consume and discard the body to free the connection back to the pool
+        await response.body?.cancel();
+        throw new AuditorError(
+          `Skipped non-HTML resource (Content-Type: ${contentType || 'unknown'})`,
+          'NOT_HTML',
+          url,
+        );
+      }
+
       const html = await response.text();
 
-      // Build redirect chain from response URL
       if (finalUrl !== url) {
         redirectChain.push(url);
       }
@@ -92,13 +169,24 @@ export class PageFetcher {
         redirectChain,
       };
     } catch (err) {
+      // Re-throw AuditorErrors as-is (includes NOT_HTML, TIMEOUT, etc.)
+      if (err instanceof AuditorError) throw err;
+
       const message = err instanceof Error ? err.message : 'Unknown fetch error';
-      if (message.includes('timeout') || message.includes('ETIMEDOUT')) {
+      if (
+        message.includes('timeout') ||
+        message.includes('ETIMEDOUT') ||
+        message.includes('UND_ERR_CONNECT_TIMEOUT') ||
+        message.includes('UND_ERR_HEADERS_TIMEOUT') ||
+        message.includes('UND_ERR_BODY_TIMEOUT')
+      ) {
         throw new AuditorError(`Request timed out: ${url}`, 'TIMEOUT', url);
       }
       throw new AuditorError(`Fetch failed: ${message}`, 'FETCH_FAILED', url);
     }
   }
+
+  // ─── Puppeteer fetch ──────────────────────────────────────────────────────────
 
   private async fetchWithPuppeteer(url: string): Promise<FetchedPage> {
     const browser = await this.getPuppeteerBrowser();
@@ -110,15 +198,24 @@ export class PageFetcher {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (page as any).setUserAgent(this.config.userAgent || DEFAULT_USER_AGENT);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (page as any).setViewport({ width: 1280, height: 800 });
 
       let statusCode = 200;
+      const responseHeaders: Record<string, string> = {};
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       page.on('response', (response: any) => {
-        if (response.url() === url) {
-          statusCode = response.status() as number;
+        const respUrl = response.url() as string;
+        const status = response.status() as number;
+
+        if (respUrl === url) {
+          statusCode = status;
+          const hdrs = response.headers() as Record<string, string>;
+          Object.assign(responseHeaders, hdrs);
         }
-        if (response.status() >= 300 && response.status() < 400) {
-          redirectChain.push(response.url() as string);
+        if (status >= 300 && status < 400) {
+          redirectChain.push(respUrl);
         }
       });
 
@@ -128,16 +225,17 @@ export class PageFetcher {
         timeout: this.config.timeout,
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const finalUrl: string = (page as any).url();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const html: string = await (page as any).content();
       const loadTimeMs = Date.now() - start;
-      const headers: Record<string, string> = {};
 
       return {
         url,
         finalUrl,
         statusCode,
-        headers,
+        headers: responseHeaders,
         html,
         loadTimeMs,
         redirectChain,
@@ -146,6 +244,7 @@ export class PageFetcher {
       const message = err instanceof Error ? err.message : 'Puppeteer error';
       throw new AuditorError(`Puppeteer fetch failed: ${message}`, 'FETCH_FAILED', url);
     } finally {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (page as any).close();
     }
   }
@@ -157,7 +256,7 @@ export class PageFetcher {
       const puppeteer = await import('puppeteer');
       this.puppeteerBrowser = await puppeteer.default.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
       });
       return this.puppeteerBrowser;
     } catch {

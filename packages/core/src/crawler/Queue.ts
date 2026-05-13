@@ -1,6 +1,10 @@
+import { isNonHtmlUrl } from './urlUtils.js';
+
 /**
  * BFS URL queue for the crawler.
  * Tracks visited URLs and queued URLs separately to avoid revisits.
+ * Non-HTML URLs (images, PDFs, sitemaps, scripts, etc.) are silently
+ * dropped at enqueue time so they never reach the fetcher.
  */
 export class Queue {
   private readonly pending: Array<{ url: string; depth: number }> = [];
@@ -12,13 +16,15 @@ export class Queue {
   }
 
   /**
-   * Enqueue a URL if it hasn't been visited and is within depth limit.
+   * Enqueue a URL if it hasn't been visited, is within depth limit,
+   * and is not a non-HTML resource (image, PDF, sitemap, script, etc.).
    */
   enqueue(url: string, depth: number): void {
     const normalized = this.normalize(url);
     if (!normalized) return;
     if (this.visited.has(normalized)) return;
     if (depth > this.maxDepth) return;
+    if (isNonHtmlUrl(normalized)) return;
 
     this.visited.add(normalized);
     this.pending.push({ url: normalized, depth });

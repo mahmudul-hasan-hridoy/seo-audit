@@ -75,16 +75,18 @@ describe('ScoreEngine', () => {
       expect(engine.computeSiteScore([])).toBe(0);
     });
 
-    it('returns the average of page scores', () => {
+    it('returns a weighted average of page scores (lower scores get more weight)', () => {
       const pages = [makePage(80), makePage(60), makePage(100)];
-      // (80 + 60 + 100) / 3 = 80
-      expect(engine.computeSiteScore(pages)).toBe(80);
+      // weight(80)=1.2, weight(60)=1.4, weight(100)=1.0
+      // (80*1.2 + 60*1.4 + 100*1.0) / (1.2+1.4+1.0) = 280/3.6 = 77.78 → 78
+      expect(engine.computeSiteScore(pages)).toBe(78);
     });
 
-    it('rounds the result', () => {
+    it('rounds the weighted result', () => {
       const pages = [makePage(80), makePage(81)];
-      // (80 + 81) / 2 = 80.5 → 81
-      expect(engine.computeSiteScore(pages)).toBe(81);
+      // weight(80)=1.2, weight(81)=1.19
+      // (80*1.2 + 81*1.19) / (1.2+1.19) = 192.39/2.39 = 80.498 → 80
+      expect(engine.computeSiteScore(pages)).toBe(80);
     });
   });
 

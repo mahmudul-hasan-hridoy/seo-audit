@@ -27,3 +27,11 @@ export const GRADE_THRESHOLDS = [
   { min: 40, grade: 'D' },
   { min: 0, grade: 'F' },
 ] as const;
+
+export const CATEGORY_WEIGHTS: Record<string, number> = {
+  technical: 1.2,
+  content: 1.0,
+  performance: 0.9,
+  accessibility: 0.8,
+  seo: 1.1,
+};

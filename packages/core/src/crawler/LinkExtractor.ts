@@ -1,5 +1,9 @@
+import { isNonHtmlUrl } from './urlUtils.js';
+
 /**
  * Extracts and classifies links from a parsed document.
+ * Non-HTML hrefs (images, PDFs, scripts, sitemaps, etc.) are filtered
+ * out so only crawlable HTML pages are returned as internal links.
  */
 export class LinkExtractor {
   private readonly baseUrl: string;
@@ -28,6 +32,8 @@ export class LinkExtractor {
       const resolved = this.resolve(href);
       if (!resolved) return;
       if (seen.has(resolved.url)) return;
+      // Skip non-HTML resources — they are assets, not pages
+      if (resolved.isInternal && isNonHtmlUrl(resolved.url)) return;
       seen.add(resolved.url);
 
       const relAttr = anchor.getAttribute('rel') ?? undefined;

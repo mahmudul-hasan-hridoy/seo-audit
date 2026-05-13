@@ -1,6 +1,6 @@
 {
   "name": "@mahmudul-hasan/seo-scan",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Professional-grade SEO site audit CLI — crawl and audit any website from the terminal",
   "type": "module",
   "bin": {
