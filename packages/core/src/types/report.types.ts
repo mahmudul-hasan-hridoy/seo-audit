@@ -2,6 +2,14 @@ import type { PageAudit, Grade } from './audit.types.js';
 import type { Issue } from './issue.types.js';
 
 /**
+ * An issue surfaced in the top-issues list, enriched with a site-wide page count.
+ */
+export interface TopIssue extends Issue {
+  /** Number of pages affected by this issue across the site. */
+  pageCount: number;
+}
+
+/**
  * The final aggregated report for an entire site audit.
  */
 export interface AuditReport {
@@ -28,8 +36,8 @@ export interface AuditReport {
   /** Per-page audit results. */
   pages: PageAudit[];
 
-  /** Top 10 most impactful issues across the site. */
-  topIssues: Issue[];
+  /** Top 10 most impactful issues across the site, with affected page count. */
+  topIssues: TopIssue[];
 
   /** Timestamp when the audit started. */
   auditedAt: Date;

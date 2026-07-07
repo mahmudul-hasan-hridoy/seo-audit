@@ -17,35 +17,51 @@ export interface CrawledPage extends FetchedPage {
 
 export type CrawlProgressCallback = (current: number, total: number, url: string) => void;
 
-interface RobotsRule {
-  pattern: string;
-  allow: boolean;
+interface RobotsChecker {
+  isAllowed(url: string, ua?: string): boolean | undefined;
 }
 
 /**
  * Orchestrates the full BFS crawl of a site.
- * Respects robots.txt (with Allow/Disallow + wildcard), concurrency limits,
- * and depth/page limits.
+ * Respects robots.txt (via robots-parser), depth limits, and concurrency.
  */
 export class Crawler {
   private readonly config: ResolvedAuditConfig;
   private readonly fetcher: PageFetcher;
-  /** Ordered list of robots.txt rules (most-specific wins). */
-  private robotsRules: RobotsRule[] = [];
+  /** Robots checker loaded once per crawl run. null = not yet loaded. */
+  private robots: RobotsChecker | null = null;
+  /**
+   * Whether robots.txt was successfully loaded when `respectRobotsTxt` is true.
+   * false = load was attempted but failed (surfaced as a warning via onProgress context).
+   */
+  private robotsLoadFailed = false;
+  /** Pre-compiled ignore-pattern regexes (compiled once at construction, not per URL). */
+  private readonly ignoreRegexes: RegExp[];
 
   constructor(config: ResolvedAuditConfig) {
     this.config = config;
     this.fetcher = new PageFetcher(config);
+    this.ignoreRegexes = this.compileIgnorePatterns(config.ignorePatterns);
   }
 
   /**
    * Run the full crawl and return all successfully fetched pages.
+   * If `respectRobotsTxt` is enabled and robots.txt cannot be loaded/parsed,
+   * the error is emitted on the returned array's `robotsError` property so
+   * callers can surface it as a warning without aborting the crawl.
    */
-  async crawl(onProgress?: CrawlProgressCallback): Promise<CrawledPage[]> {
+  async crawl(
+    onProgress?: CrawlProgressCallback,
+    onRobotsError?: (err: Error) => void,
+  ): Promise<CrawledPage[]> {
     const rootUrl = new URL(this.config.url);
 
     if (this.config.respectRobotsTxt) {
-      await this.loadRobotsTxt(rootUrl.origin);
+      const robotsErr = await this.loadRobotsTxt(rootUrl.origin);
+      if (robotsErr) {
+        this.robotsLoadFailed = true;
+        onRobotsError?.(robotsErr);
+      }
     }
 
     const queue = new Queue(this.config.crawlDepth);
@@ -93,8 +109,7 @@ export class Crawler {
             processed++;
             onProgress?.(processed, Math.min(queue.totalSeen, this.config.maxPages), url);
           } catch (err) {
-            // NOT_HTML: silently discard — this is expected for sitemap.xml, robots.txt,
-            // PDFs, images, etc. Don't count them as processed audit pages.
+            // NOT_HTML: silently discard — expected for sitemaps, robots.txt, PDFs, images, etc.
             if (err instanceof AuditorError && err.code === 'NOT_HTML') {
               return;
             }
@@ -122,112 +137,71 @@ export class Crawler {
 
   // ─── robots.txt ──────────────────────────────────────────────────────────────
 
-  private async loadRobotsTxt(origin: string): Promise<void> {
+  /**
+   * Load and parse robots.txt for the given origin.
+   * Returns an Error if loading or parsing fails, null on success.
+   * Failures are non-fatal but must be surfaced to the caller.
+   */
+  private async loadRobotsTxt(origin: string): Promise<Error | null> {
+    const robotsUrl = `${origin}/robots.txt`;
     try {
-      const response = await fetch(`${origin}/robots.txt`, {
+      const response = await fetch(robotsUrl, {
         headers: { 'User-Agent': this.config.userAgent },
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        // 404 is perfectly normal — no robots.txt means no restrictions.
+        if (response.status === 404) return null;
+        return new Error(`robots.txt responded with HTTP ${response.status}`);
+      }
       const text = await response.text();
-      this.parseRobotsTxt(text);
-    } catch {
-      // robots.txt is optional — silently continue
+
+      // Dynamically import robots-parser (CJS) to avoid ESM interop issues at module level.
+      const mod = await import('robots-parser');
+      // robots-parser ships as CJS: the callable is at .default (via esModuleInterop) or mod itself.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parser: (url: string, content: string) => RobotsChecker = (mod as any).default ?? mod;
+      this.robots = parser(robotsUrl, text);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err : new Error(String(err));
     }
-  }
-
-  /**
-   * Full-featured robots.txt parser:
-   * - Targets User-agent: * and User-agent: seo-auditor
-   * - Handles both Disallow: and Allow: directives
-   * - Supports simple wildcard patterns (*)
-   * - More-specific patterns take precedence (longer pattern wins)
-   */
-  private parseRobotsTxt(content: string): void {
-    const rules: RobotsRule[] = [];
-    let applicable = false;
-
-    for (const rawLine of content.split('\n')) {
-      const line = rawLine.split('#')[0]?.trim() ?? '';
-      if (!line) continue;
-
-      const colonIdx = line.indexOf(':');
-      if (colonIdx === -1) continue;
-
-      const directive = line.slice(0, colonIdx).trim().toLowerCase();
-      const value = line.slice(colonIdx + 1).trim();
-
-      if (directive === 'user-agent') {
-        const agent = value.toLowerCase();
-        applicable = agent === '*' || agent === 'seo-auditor';
-        continue;
-      }
-
-      if (!applicable) continue;
-
-      if (directive === 'disallow' && value) {
-        rules.push({ pattern: value, allow: false });
-      } else if (directive === 'allow' && value) {
-        rules.push({ pattern: value, allow: true });
-      }
-    }
-
-    // Sort by specificity: longer patterns take precedence
-    this.robotsRules = rules.sort((a, b) => b.pattern.length - a.pattern.length);
   }
 
   /**
    * Check whether a URL is disallowed by robots.txt.
-   * Allow directives override Disallow for the same path prefix.
+   * If robots loading failed and respectRobotsTxt is true, we fail-open
+   * (allow crawling) but the caller was already notified via onRobotsError.
    */
   private isDisallowed(url: string): boolean {
-    if (this.robotsRules.length === 0) return false;
-
-    try {
-      const { pathname } = new URL(url);
-
-      for (const rule of this.robotsRules) {
-        if (this.matchesRobotsPattern(pathname, rule.pattern)) {
-          return !rule.allow;
-        }
-      }
-    } catch {
-      return true;
-    }
-
-    return false;
+    if (!this.robots) return false;
+    const allowed = this.robots.isAllowed(url, this.config.userAgent);
+    // isAllowed returns undefined when no matching rule exists — treat as allowed
+    return allowed === false;
   }
 
+  // ─── Ignore patterns ─────────────────────────────────────────────────────────
+
   /**
-   * Matches a URL path against a robots.txt pattern.
-   * Supports * wildcard and $ end-of-string anchor.
+   * Pre-compile ignore patterns to RegExp objects once at construction time.
+   * Supports glob-style wildcards (*).
    */
-  private matchesRobotsPattern(pathname: string, pattern: string): boolean {
-    // Convert robots.txt pattern to regex
-    const escaped = pattern
-      .replace(/[.+?^{}()|[\]\\]/g, '\\$&') // escape special chars except * and $
-      .replace(/\*/g, '.*'); // * → .*
-
-    const anchor = escaped.endsWith('\\$') ? '' : '';
-    const regexStr = `^${escaped.replace(/\\\$$/, '$')}`;
-
-    try {
-      return new RegExp(regexStr).test(pathname);
-    } catch {
-      // Fallback to plain prefix match
-      return pathname.startsWith(pattern.replace(/\*.*/, ''));
+  private compileIgnorePatterns(patterns: string[]): RegExp[] {
+    const compiled: RegExp[] = [];
+    for (const pattern of patterns) {
+      try {
+        const escaped = pattern.replace(/[-[\]{}()+?.,\\^$|#\s]/g, '\\$&');
+        const regexStr = escaped.replace(/\*/g, '.*');
+        compiled.push(new RegExp(`^${regexStr}$`));
+      } catch {
+        // Invalid pattern — skip silently
+      }
     }
+    return compiled;
   }
 
   private isIgnored(url: string): boolean {
-    for (const pattern of this.config.ignorePatterns) {
-      // Support glob-style wildcards
-      const escaped = pattern.replace(/[-[\]{}()+?.,\\^$|#\s]/g, '\\$&');
-      const regexStr = escaped.replace(/\*/g, '.*');
-      try {
-        if (new RegExp(`^${regexStr}$`).test(url) || new RegExp(regexStr).test(url)) return true;
-      } catch {
-        // invalid pattern — skip
-      }
+    for (const regex of this.ignoreRegexes) {
+      if (regex.test(url)) return true;
     }
     return false;
   }

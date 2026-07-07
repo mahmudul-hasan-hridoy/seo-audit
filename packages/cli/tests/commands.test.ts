@@ -1,6 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { Reporter } from 'seo-auditor';
-import type { AuditReport } from 'seo-auditor';
+import { describe, it, expect } from 'vitest';
+// Import directly from the core source to avoid needing the built dist for tests.
+// The CLI itself depends on the published package, but tests run against source.
+import { Reporter } from '../../core/src/reporter/Reporter.js';
+import type { AuditReport } from '../../core/src/types/index.js';
 
 function makeMockReport(): AuditReport {
   return {

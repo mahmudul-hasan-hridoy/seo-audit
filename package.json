@@ -3,11 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/cli"
+  ],
   "scripts": {
-    "build": "pnpm -r run build",
-    "build:core": "pnpm --filter seo-auditor run build",
-    "build:cli": "pnpm --filter seo-audit run build",
-    "typecheck": "pnpm -r run typecheck",
+    "build": "npm run build --workspace=packages/core && npm run build --workspace=packages/cli",
+    "build:core": "npm run build --workspace=packages/core",
+    "build:cli": "npm run build --workspace=packages/cli",
+    "typecheck": "npm run typecheck --workspace=packages/core && npm run typecheck --workspace=packages/cli",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -17,11 +21,11 @@
     "smoke:url": "node scripts/smoke-test.mjs"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
-    "eslint": "^8.57.0",
-    "prettier": "^3.2.0",
-    "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "@typescript-eslint/eslint-plugin": "^8.63.0",
+    "@typescript-eslint/parser": "^8.63.0",
+    "eslint": "^10.6.0",
+    "prettier": "^3.9.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }

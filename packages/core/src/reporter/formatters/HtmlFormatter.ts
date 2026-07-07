@@ -1,4 +1,5 @@
 import type { AuditReport } from '../../types/index.js';
+import type { TopIssue } from '../../types/report.types.js';
 import type { PageAudit } from '../../types/audit.types.js';
 import type { Issue } from '../../types/issue.types.js';
 
@@ -187,6 +188,7 @@ export class HtmlFormatter {
     .issue-desc   { font-size: 0.8rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.5; }
     .issue-fix    { font-size: 0.78rem; color: var(--info); margin-top: 0.3rem; }
     .issue-cat    { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+    .page-count   { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
 
     /* ─── Badge ──────────────────────────────────────────────── */
     .badge {
@@ -317,8 +319,10 @@ export class HtmlFormatter {
       .site-header { flex-direction: column; }
       .page-card__header { grid-template-columns: 1fr auto auto; }
       .page-card__score { display: none; }
-      thead th:nth-child(3) { display: none; }
-      tbody td:nth-child(3) { display: none; }
+      thead th:nth-child(3),
+      thead th:nth-child(4) { display: none; }
+      tbody td:nth-child(3),
+      tbody td:nth-child(4) { display: none; }
     }
   </style>
 </head>
@@ -361,6 +365,9 @@ export class HtmlFormatter {
     </div>
   </div>
 
+  <!-- Top Issues -->
+  ${report.topIssues.length > 0 ? this.renderTopIssues(report.topIssues) : ''}
+
   <!-- Per-page Results -->
   <div class="section-heading">Page Results</div>
   <div class="page-list">
@@ -382,6 +389,42 @@ export class HtmlFormatter {
 </script>
 </body>
 </html>`;
+  }
+
+  // ─── Top Issues table ─────────────────────────────────────────────────────
+
+  private renderTopIssues(issues: TopIssue[]): string {
+    const rows = issues
+      .map(
+        (i) => `
+      <tr>
+        <td style="width:90px"><span class="badge badge-${i.severity}">${this.severityDot(i.severity)} ${this.severityLabel(i.severity)}</span></td>
+        <td>
+          <div class="issue-title">${this.esc(i.title)}</div>
+          <div class="issue-desc">${this.esc(i.description)}</div>
+          ${i.fix ? `<div class="issue-fix">→ ${this.esc(i.fix)}</div>` : ''}
+        </td>
+        <td class="issue-cat">${this.esc(i.category)}</td>
+        <td class="page-count">${i.pageCount} page${i.pageCount !== 1 ? 's' : ''}</td>
+      </tr>`,
+      )
+      .join('');
+
+    return `
+  <div class="section-heading">Top Issues</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Issue</th>
+          <th>Category</th>
+          <th>Pages</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
   }
 
   // ─── SVG ring score indicator ─────────────────────────────────────────────
@@ -526,14 +569,8 @@ export class HtmlFormatter {
     return map[s] ?? s;
   }
 
-  private severityDot(s: string): string {
-    const map: Record<string, string> = {
-      error: '●',
-      warning: '●',
-      info: '●',
-      pass: '●',
-    };
-    return map[s] ?? '●';
+  private severityDot(_s: string): string {
+    return '●';
   }
 
   private esc(s: string): string {

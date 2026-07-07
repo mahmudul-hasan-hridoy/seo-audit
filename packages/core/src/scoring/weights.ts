@@ -1,4 +1,4 @@
-import type { IssueSeverity } from '../types/index.js';
+import type { IssueSeverity, AnalyzerName } from '../types/index.js';
 
 /**
  * Score penalty per issue severity.
@@ -28,10 +28,19 @@ export const GRADE_THRESHOLDS = [
   { min: 0, grade: 'F' },
 ] as const;
 
-export const CATEGORY_WEIGHTS: Record<string, number> = {
-  technical: 1.2,
-  content: 1.0,
-  performance: 0.9,
-  accessibility: 0.8,
-  seo: 1.1,
+/**
+ * Relative importance weights per analyzer category.
+ * Used to secondary-sort top issues (higher weight = shown first).
+ *
+ * Keys MUST match the AnalyzerName union exactly.
+ */
+export const CATEGORY_WEIGHTS: Record<AnalyzerName, number> = {
+  onpage: 1.3,      // Title, meta, headings — most direct ranking signal
+  technical: 1.2,   // HTTPS, canonical, robots directives
+  content: 1.0,     // Thin content, readability
+  performance: 1.0, // Load time, compression, CWV signals
+  images: 0.8,      // Alt text, lazy-load, CLS prevention
+  links: 0.8,       // Internal linking, anchor text
+  mobile: 0.7,      // Viewport, tap targets
+  schema: 0.6,      // Structured data (rich results)
 };

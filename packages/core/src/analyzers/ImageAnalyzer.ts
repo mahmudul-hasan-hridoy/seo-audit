@@ -24,7 +24,7 @@ export class ImageAnalyzer extends BaseAnalyzer {
     const missingDimensions: string[] = [];
     const missingLazy: number[] = [];
     let nextGenCount = 0;
-    let totalImages = images.length;
+    const totalImages = images.length; // was incorrectly `let` — never re-assigned
 
     images.forEach((img, index) => {
       const src = img.getAttribute('src') ?? '';
@@ -44,7 +44,7 @@ export class ImageAnalyzer extends BaseAnalyzer {
         missingDimensions.push(src || `image[${index}]`);
       }
 
-      // Lazy loading check (skip above-the-fold heuristic — flag all)
+      // Lazy loading check (skip above-the-fold heuristic — flag all without loading="lazy")
       if (loading !== 'lazy') {
         missingLazy.push(index);
       }
@@ -107,7 +107,7 @@ export class ImageAnalyzer extends BaseAnalyzer {
         this.warning(
           'images-not-lazy-loaded',
           'Most images are not lazy loaded',
-          `Only ${totalImages - missingLazy.length} of ${totalImages} images use loading="lazy". Lazy loading defers off-screen images.`,
+          `Only ${totalImages - missingLazy.length} of ${totalImages} images use loading="lazy". Lazy loading defers off-screen images and improves LCP.`,
           ctx.url,
           {
             value: missingLazy.length,

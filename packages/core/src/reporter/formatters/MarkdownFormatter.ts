@@ -1,4 +1,5 @@
 import type { AuditReport } from '../../types/index.js';
+import type { TopIssue } from '../../types/report.types.js';
 import type { Issue } from '../../types/issue.types.js';
 
 const SEVERITY_EMOJI: Record<string, string> = {
@@ -40,12 +41,14 @@ export class MarkdownFormatter {
     if (report.topIssues.length > 0) {
       lines.push(`## Top Issues`);
       lines.push(``);
-      lines.push(`| Severity | Issue | URL |`);
-      lines.push(`|----------|-------|-----|`);
+      lines.push(`| Severity | Issue | Category | Pages Affected |`);
+      lines.push(`|----------|-------|----------|----------------|`);
 
-      report.topIssues.forEach((issue) => {
+      report.topIssues.forEach((issue: TopIssue) => {
         const emoji = SEVERITY_EMOJI[issue.severity] ?? '';
-        lines.push(`| ${emoji} | **${issue.title}** | ${issue.affectedUrl} |`);
+        lines.push(
+          `| ${emoji} | **${issue.title}** | ${issue.category} | ${issue.pageCount} page${issue.pageCount !== 1 ? 's' : ''} |`,
+        );
       });
       lines.push(``);
     }

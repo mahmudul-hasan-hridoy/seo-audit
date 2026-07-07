@@ -1,6 +1,7 @@
 import { SEVERITY_PENALTIES, MAX_PENALTY, GRADE_THRESHOLDS, CATEGORY_WEIGHTS } from './weights.js';
 import type { Issue, IssueSeverity, AuditReport, AnalyzerName } from '../types/index.js';
 import type { PageAudit, Grade } from '../types/audit.types.js';
+import type { TopIssue } from '../types/report.types.js';
 
 export interface CategoryScore {
   category: AnalyzerName;
@@ -120,10 +121,10 @@ export class ScoreEngine {
   /**
    * Return the top N issues by impact (errors first, then warnings),
    * deduplicated by issue ID across all pages.
-   * Each issue in the result carries a `_pageCount` property indicating
+   * Each issue in the result carries a `pageCount` indicating
    * how many pages were affected.
    */
-  topIssues(pages: PageAudit[], limit = 10): (Issue & { pageCount: number })[] {
+  topIssues(pages: PageAudit[], limit = 10): TopIssue[] {
     const issueMap = new Map<string, { issue: Issue; count: number }>();
 
     for (const page of pages) {
@@ -151,10 +152,11 @@ export class ScoreEngine {
         const sevDiff =
           (severityOrder[b.issue.severity] ?? 0) - (severityOrder[a.issue.severity] ?? 0);
         if (sevDiff !== 0) return sevDiff;
-        // Secondary sort: by category weight (more important categories first)
+        // Secondary sort: by category weight (more important categories surface first)
         const weightDiff =
           (CATEGORY_WEIGHTS[b.issue.category] ?? 1) - (CATEGORY_WEIGHTS[a.issue.category] ?? 1);
         if (weightDiff !== 0) return weightDiff;
+        // Tertiary sort: most pages affected first
         return b.count - a.count;
       })
       .slice(0, limit)

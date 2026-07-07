@@ -29,32 +29,39 @@ describe('PerformanceAnalyzer', () => {
   });
 
   describe('load time', () => {
-    it('passes when load time is fast', async () => {
+    it('passes when load time is fast (< 200ms)', async () => {
       const ctx = makeCtx('<html><head></head><body></body></html>', 100);
       const issues = await analyzer.analyze(ctx);
-      const passIds = issues.filter((i) => i.id === 'load-time-ok');
+      const passIds = issues.filter((i) => i.id === 'server-response-ok');
       expect(passIds.length).toBe(1);
     });
 
-    it('warns when load time is slow (> 200ms)', async () => {
+    it('gives info when load time is acceptable (200ms–800ms)', async () => {
       const ctx = makeCtx('<html><head></head><body></body></html>', 500);
       const issues = await analyzer.analyze(ctx);
       const ids = issues.map((i) => i.id);
-      expect(ids).toContain('ttfb-slow');
+      expect(ids).toContain('server-response-acceptable');
     });
 
-    it('warns when load time is very slow (> 3s)', async () => {
+    it('warns when load time needs improvement (800ms–3s)', async () => {
+      const ctx = makeCtx('<html><head></head><body></body></html>', 1500);
+      const issues = await analyzer.analyze(ctx);
+      const ids = issues.map((i) => i.id);
+      expect(ids).toContain('server-response-needs-improvement');
+    });
+
+    it('warns when load time is slow (> 3s)', async () => {
       const ctx = makeCtx('<html><head></head><body></body></html>', 4000);
       const issues = await analyzer.analyze(ctx);
       const ids = issues.map((i) => i.id);
-      expect(ids).toContain('load-time-slow');
+      expect(ids).toContain('server-response-slow');
     });
 
     it('errors when load time is critically slow (> 6s)', async () => {
       const ctx = makeCtx('<html><head></head><body></body></html>', 7000);
       const issues = await analyzer.analyze(ctx);
       const ids = issues.map((i) => i.id);
-      expect(ids).toContain('load-time-critical');
+      expect(ids).toContain('server-response-critical');
     });
   });
 

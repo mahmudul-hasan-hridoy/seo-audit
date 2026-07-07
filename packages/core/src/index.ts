@@ -30,6 +30,7 @@ export type {
   ResolvedAuditConfig,
   AnalyzerName,
   AuditReport,
+  TopIssue,
   PageAudit,
   Grade,
   Issue,

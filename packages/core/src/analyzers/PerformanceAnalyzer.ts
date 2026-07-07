@@ -1,21 +1,28 @@
 import { BaseAnalyzer, type AnalyzerContext } from './BaseAnalyzer.js';
 import type { Issue } from '../types/index.js';
 
-const TTFB_WARNING_MS = 200;
-const TTFB_ERROR_MS = 600;
-const LOAD_TIME_WARNING_MS = 3000;
-const LOAD_TIME_ERROR_MS = 6000;
-const PAGE_SIZE_WARNING_BYTES = 1_000_000; // 1MB
-const PAGE_SIZE_ERROR_BYTES = 3_000_000; // 3MB
+/**
+ * Thresholds aligned with Google's Core Web Vitals (2024+) and HTTP Archive
+ * median benchmarks. All measurements here are of the *server-side fetch time*
+ * (time from request start to full HTML body received), which is a proxy for
+ * TTFB + HTML transfer time — not client-side LCP/CLS, which require a real
+ * browser to measure.
+ */
+const SERVER_RESPONSE_GOOD_MS = 200;   // Google: "good" TTFB target
+const SERVER_RESPONSE_NEEDS_IMPROVEMENT_MS = 800; // Google: "needs improvement" boundary
+const LOAD_TIME_WARNING_MS = 3000;     // 3 s: likely slow even accounting for transfer
+const LOAD_TIME_ERROR_MS = 6000;       // 6 s: critically slow
+const PAGE_SIZE_WARNING_BYTES = 1_000_000; // 1 MB
+const PAGE_SIZE_ERROR_BYTES = 3_000_000;   // 3 MB
 
 /**
  * Performance-related SEO checks:
- * - TTFB (Time to First Byte)
- * - Total load time
+ * - Server response time (proxy for TTFB)
+ * - Total fetch time
  * - Response compression (gzip/brotli)
- * - Content-Type header
  * - HTML size
  * - Render-blocking resource hints
+ * - Cache-Control header
  */
 export class PerformanceAnalyzer extends BaseAnalyzer {
   readonly name = 'performance' as const;
@@ -23,7 +30,7 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
   async analyze(ctx: AnalyzerContext): Promise<Issue[]> {
     const issues: Issue[] = [];
 
-    issues.push(...this.checkLoadTime(ctx));
+    issues.push(...this.checkServerResponseTime(ctx));
     issues.push(...this.checkCompression(ctx));
     issues.push(...this.checkHtmlSize(ctx));
     issues.push(...this.checkRenderBlocking(ctx));
@@ -32,20 +39,25 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
     return issues;
   }
 
-  private checkLoadTime(ctx: AnalyzerContext): Issue[] {
+  /**
+   * Check total fetch time (request start → full body received).
+   * This is the best server-side approximation we can make without a real browser.
+   * Covers both TTFB and HTML transfer time.
+   */
+  private checkServerResponseTime(ctx: AnalyzerContext): Issue[] {
     const ms = ctx.loadTimeMs;
 
     if (ms > LOAD_TIME_ERROR_MS) {
       return [
         this.error(
-          'load-time-critical',
-          'Page load time is critically slow',
-          `Page took ${ms}ms to load. Google's Core Web Vitals target LCP under 2.5s.`,
+          'server-response-critical',
+          'Server response time is critically slow',
+          `Page took ${ms}ms to fully load (request → body received). Google's Core Web Vitals flag pages over 4s as "poor" LCP.`,
           ctx.url,
           {
             value: ms,
             expected: `< ${LOAD_TIME_WARNING_MS}ms`,
-            fix: 'Optimize images, reduce JavaScript, enable caching, use a CDN.',
+            fix: 'Optimize server response, enable caching/CDN, reduce HTML payload size.',
             docs: 'https://web.dev/lcp/',
           },
         ),
@@ -55,29 +67,30 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
     if (ms > LOAD_TIME_WARNING_MS) {
       return [
         this.warning(
-          'load-time-slow',
-          'Page load time is slow',
-          `Page took ${ms}ms to load. Aim for under ${LOAD_TIME_WARNING_MS}ms.`,
+          'server-response-slow',
+          'Server response time is slow',
+          `Page took ${ms}ms to fully load. Aim for under ${LOAD_TIME_WARNING_MS}ms to keep LCP in the "good" range.`,
           ctx.url,
           {
             value: ms,
             expected: `< ${LOAD_TIME_WARNING_MS}ms`,
-            fix: 'Consider lazy loading, image optimization, and code splitting.',
+            fix: 'Consider server-side caching, image optimization, and reducing Time to First Byte.',
+            docs: 'https://web.dev/ttfb/',
           },
         ),
       ];
     }
 
-    if (ms > TTFB_WARNING_MS) {
+    if (ms > SERVER_RESPONSE_NEEDS_IMPROVEMENT_MS) {
       return [
         this.warning(
-          'ttfb-slow',
-          'Time to First Byte (TTFB) is slow',
-          `Server responded in ${ms}ms. Google recommends TTFB under ${TTFB_WARNING_MS}ms.`,
+          'server-response-needs-improvement',
+          'Server response time needs improvement',
+          `Page responded in ${ms}ms. Google recommends TTFB under ${SERVER_RESPONSE_GOOD_MS}ms for a "good" score.`,
           ctx.url,
           {
             value: ms,
-            expected: `< ${TTFB_WARNING_MS}ms`,
+            expected: `< ${SERVER_RESPONSE_GOOD_MS}ms`,
             fix: 'Optimize server response time, use edge caching or a CDN.',
             docs: 'https://web.dev/ttfb/',
           },
@@ -85,7 +98,19 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
       ];
     }
 
-    return [this.pass('load-time-ok', 'Page load time is acceptable', ctx.url)];
+    if (ms > SERVER_RESPONSE_GOOD_MS) {
+      return [
+        this.info(
+          'server-response-acceptable',
+          'Server response time is acceptable',
+          `Page responded in ${ms}ms. Within acceptable range, but under ${SERVER_RESPONSE_GOOD_MS}ms is ideal.`,
+          ctx.url,
+          { value: ms, expected: `< ${SERVER_RESPONSE_GOOD_MS}ms` },
+        ),
+      ];
+    }
+
+    return [this.pass('server-response-ok', 'Server response time is excellent', ctx.url)];
   }
 
   private checkCompression(ctx: AnalyzerContext): Issue[] {
@@ -96,7 +121,7 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
         this.warning(
           'no-compression',
           'Response compression is disabled',
-          'Server does not send gzip or brotli compression. This increases transfer size significantly.',
+          'Server does not send gzip or brotli compression. This increases transfer size and slows load times.',
           ctx.url,
           {
             fix: 'Enable gzip or brotli compression on your web server.',
@@ -118,7 +143,7 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
       this.info(
         'unknown-encoding',
         'Unknown content encoding',
-        `Content-Encoding: ${encoding} is set but not a recognized compression format.`,
+        `Content-Encoding: ${encoding} is set but is not a recognized compression format.`,
         ctx.url,
         { value: encoding },
       ),
@@ -149,7 +174,7 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
         this.warning(
           'html-size-large',
           'HTML document size is large',
-          `HTML is ${this.formatBytes(bytes)}. Consider optimizing.`,
+          `HTML is ${this.formatBytes(bytes)}. Consider optimizing to improve parse time.`,
           ctx.url,
           { value: bytes, expected: `< ${this.formatBytes(PAGE_SIZE_WARNING_BYTES)}` },
         ),
@@ -162,10 +187,10 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
   private checkRenderBlocking(ctx: AnalyzerContext): Issue[] {
     const issues: Issue[] = [];
 
-    // Check for render-blocking <link rel="stylesheet"> in <head> without media query
     const headEl = ctx.dom.querySelector('head');
     if (!headEl) return issues;
 
+    // Render-blocking <link rel="stylesheet"> without a non-screen media query
     const blockingStylesheets = Array.from(
       headEl.querySelectorAll('link[rel="stylesheet"]'),
     ).filter((el) => {
@@ -182,14 +207,14 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
           ctx.url,
           {
             value: blockingStylesheets.length,
-            fix: 'Combine stylesheets, inline critical CSS, or use media attributes.',
+            fix: 'Combine stylesheets, inline critical CSS, or use media attributes to defer non-critical styles.',
             docs: 'https://web.dev/render-blocking-resources/',
           },
         ),
       );
     }
 
-    // Check for synchronous <script> tags in <head>
+    // Synchronous <script> tags in <head> without defer/async
     const blockingScripts = Array.from(headEl.querySelectorAll('script[src]')).filter(
       (el) => !el.hasAttribute('defer') && !el.hasAttribute('async'),
     );
@@ -199,11 +224,12 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
         this.warning(
           'render-blocking-scripts',
           'Render-blocking scripts in <head>',
-          `Found ${blockingScripts.length} synchronous script(s) in <head> without defer/async.`,
+          `Found ${blockingScripts.length} synchronous script(s) in <head> without defer or async. These block HTML parsing.`,
           ctx.url,
           {
             value: blockingScripts.length,
-            fix: 'Add defer or async attributes to non-critical scripts, or move to end of <body>.',
+            fix: 'Add defer or async attributes to non-critical scripts, or move them to end of <body>.',
+            docs: 'https://web.dev/render-blocking-resources/',
           },
         ),
       );
@@ -224,7 +250,7 @@ export class PerformanceAnalyzer extends BaseAnalyzer {
         this.info(
           'missing-cache-control',
           'No Cache-Control header',
-          'No Cache-Control header found. Browsers may not cache this page efficiently.',
+          'No Cache-Control header found. Browsers may not cache this page efficiently, increasing repeat-visit load times.',
           ctx.url,
           { fix: 'Set Cache-Control: max-age=3600 or similar for static pages.' },
         ),

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import pLimit from 'p-limit';
 import { Crawler } from './crawler/Crawler.js';
 import { OnPageAnalyzer } from './analyzers/OnPageAnalyzer.js';
 import { TechnicalAnalyzer } from './analyzers/TechnicalAnalyzer.js';
@@ -26,7 +27,8 @@ const ALL_ANALYZERS: AnalyzerName[] = [
   'schema',
 ];
 
-const DEFAULT_USER_AGENT = 'seo-auditor/0.1.0 (+https://github.com/mahmudul-hasan-hridoy/seo-audit)';
+const DEFAULT_USER_AGENT =
+  'seo-auditor/1.0.0 (+https://github.com/mahmudul-hasan-hridoy/seo-audit)';
 
 /**
  * Events emitted by the Auditor during a run.
@@ -75,28 +77,44 @@ export class Auditor extends EventEmitter {
     let crawledPages: CrawledPage[] = [];
 
     try {
-      crawledPages = await crawler.crawl((current, total) => {
-        this.emit('progress', current, total);
-      });
+      crawledPages = await crawler.crawl(
+        (current, total) => {
+          this.emit('progress', current, total);
+        },
+        (err) => {
+          // robots.txt load/parse failure — surfaced as a non-fatal error event
+          this.emit(
+            'error',
+            new Error(`robots.txt could not be loaded: ${err.message}. Crawling without restrictions.`),
+          );
+        },
+      );
     } finally {
       await crawler.dispose();
     }
 
     this.emit('crawl:done', crawledPages.length);
 
-    // Analyze each page
-    const pageAudits: PageAudit[] = [];
+    // Analyze pages in parallel (bounded by the configured concurrency).
+    const limit = pLimit(this.config.concurrency);
 
-    for (const crawled of crawledPages) {
-      try {
-        const pageAudit = await this.auditPage(crawled);
-        pageAudits.push(pageAudit);
-        this.emit('page:audited', pageAudit);
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        this.emit('error', error, crawled.url);
-      }
-    }
+    const pageAudits = (
+      await Promise.all(
+        crawledPages.map((crawled) =>
+          limit(async (): Promise<PageAudit | null> => {
+            try {
+              const pageAudit = await this.auditPage(crawled);
+              this.emit('page:audited', pageAudit);
+              return pageAudit;
+            } catch (err) {
+              const error = err instanceof Error ? err : new Error(String(err));
+              this.emit('error', error, crawled.url);
+              return null;
+            }
+          }),
+        ),
+      )
+    ).filter((p): p is PageAudit => p !== null);
 
     // Build report
     const siteScore = this.scoreEngine.computeSiteScore(pageAudits);
@@ -171,6 +189,10 @@ export class Auditor extends EventEmitter {
   }
 
   private validateConfig(): void {
+    // URL validation
+    if (!this.config.url || typeof this.config.url !== 'string') {
+      throw new AuditorError('URL must be a non-empty string.', 'INVALID_URL');
+    }
     try {
       new URL(this.config.url);
     } catch {
@@ -180,12 +202,39 @@ export class Auditor extends EventEmitter {
         this.config.url,
       );
     }
-
     if (!this.config.url.startsWith('http')) {
       throw new AuditorError(
         `URL must start with http:// or https://`,
         'INVALID_URL',
         this.config.url,
+      );
+    }
+
+    // Numeric range guards — protects p-limit and crawl loops from bad values.
+    const { concurrency, maxPages, crawlDepth, timeout } = this.config;
+
+    if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 50) {
+      throw new AuditorError(
+        `concurrency must be an integer between 1 and 50 (got ${concurrency}).`,
+        'CONFIG_INVALID',
+      );
+    }
+    if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 100_000) {
+      throw new AuditorError(
+        `maxPages must be an integer between 1 and 100,000 (got ${maxPages}).`,
+        'CONFIG_INVALID',
+      );
+    }
+    if (!Number.isInteger(crawlDepth) || crawlDepth < 0 || crawlDepth > 20) {
+      throw new AuditorError(
+        `crawlDepth must be an integer between 0 and 20 (got ${crawlDepth}).`,
+        'CONFIG_INVALID',
+      );
+    }
+    if (!Number.isFinite(timeout) || timeout < 1000 || timeout > 120_000) {
+      throw new AuditorError(
+        `timeout must be between 1,000ms and 120,000ms (got ${timeout}).`,
+        'CONFIG_INVALID',
       );
     }
   }

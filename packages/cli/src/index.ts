@@ -6,7 +6,7 @@ import { runScheduleCommand } from './commands/schedule.js';
 
 const program = new Command();
 
-program.name('seo-audit').description('Professional-grade SEO site audit tool').version('0.1.0');
+program.name('seo-audit').description('Professional-grade SEO site audit tool').version('0.1.3');
 
 program
   .command('run [url]')

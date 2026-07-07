@@ -1,0 +1,3 @@
+- [CLI typecheck setup](cli-typecheck-setup.md) — CLI uses TS project references to consume core; core must be built first (`npm run build --workspace=packages/core`).
+- [robots-parser CJS interop](robots-parser-interop.md) — robots-parser is CJS; use dynamic `import()` and cast `.default ?? mod` to get the callable; avoid top-level `import robotsParser` with ReturnType<typeof robotsParser>.
+- [Monorepo workspace scripts](monorepo-scripts.md) — root `package.json` must declare `"workspaces"` field and use `npm run X --workspace=packages/Y` syntax; `npm -r` and `npm --filter` are not valid without a workspaces declaration.
