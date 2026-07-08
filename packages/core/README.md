@@ -1,92 +1,132 @@
 # seo-auditor
 
 [![npm](https://img.shields.io/npm/v/seo-auditor)](https://www.npmjs.com/package/seo-auditor)
-[![license](https://img.shields.io/npm/l/seo-auditor)](./LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Node.js library for programmatic SEO site auditing. Crawls a site, runs eight parallel analyzers on every page, and returns a typed report — no browser required.
+Professional-grade SEO site auditing library for Node.js. Crawl any website, run 8 SEO analyzer modules in parallel per page, compute weighted scores, and emit structured reports in HTML, Markdown, or JSON.
 
-**Requirements:** Node.js 18+
+---
+
+## Features
+
+- **BFS crawler** — respects `robots.txt`, configurable depth, concurrency, and URL ignore patterns
+- **8 built-in analyzers** run in parallel: on-page, technical, performance, content, images, links, mobile, schema
+- **Structured output** — every issue carries an `id`, severity, fix suggestion, and docs link
+- **Three report formats** — self-contained HTML dashboard, Markdown, JSON
+- **Fully typed** — strict TypeScript, ESM-only, Node ≥ 18
+- **Extensible** — extend `BaseAnalyzer` to add custom checks
+
+---
 
 ## Installation
 
-```bash
+```sh
 npm install seo-auditor
 ```
+
+---
 
 ## Quick start
 
 ```ts
 import { Auditor } from 'seo-auditor';
 
-const report = await new Auditor({ url: 'https://example.com' }).run();
+const auditor = new Auditor({
+  url: 'https://example.com',
+  maxPages: 100,
+  crawlDepth: 3,
+  concurrency: 5,
+});
 
-console.log(`${report.siteScore}/100 (${report.grade})`);
-console.log(`${report.totalPages} pages — ${report.summary.errors} errors, ${report.summary.warnings} warnings`);
+auditor.on('page:audited', (page) => {
+  console.log(`${page.url}  score=${page.score}  grade=${page.grade}`);
+});
+
+const report = await auditor.run();
+
+console.log(`Site: ${report.siteScore}/100 (${report.grade})`);
+console.log(`Errors: ${report.summary.errors}  Warnings: ${report.summary.warnings}`);
 ```
 
-## Configuration
+---
 
-All options except `url` are optional.
+## Configuration
 
 ```ts
 import { Auditor, defineConfig } from 'seo-auditor';
 
-const auditor = new Auditor(defineConfig({
-  url: 'https://example.com',   // required
+const config = defineConfig({
+  /** Required. Absolute URL with protocol. */
+  url: 'https://example.com',
 
-  maxPages: 100,                // default: 100
-  crawlDepth: 3,                // default: 3
-  concurrency: 5,               // default: 5
-  timeout: 10000,               // ms, default: 10000
+  /** Maximum number of pages to crawl. Default: 100. Range: 1–100,000. */
+  maxPages: 200,
 
-  respectRobotsTxt: true,       // default: true
-  renderJs: false,              // Puppeteer for JS pages, default: false
+  /** Maximum BFS depth from the root URL. Default: 3. Range: 0–20. */
+  crawlDepth: 4,
+
+  /** Number of pages fetched in parallel. Default: 5. Range: 1–50. */
+  concurrency: 8,
+
+  /** Per-request timeout in ms. Default: 10,000. Range: 1,000–120,000. */
+  timeout: 15_000,
+
+  /** Honour robots.txt Disallow rules. Default: true. */
+  respectRobotsTxt: true,
+
+  /** Use a headless browser (Puppeteer) to render JS before analysis. Default: false. */
+  renderJs: false,
+
+  /** Custom User-Agent string sent with every request. */
   userAgent: 'MyBot/1.0',
 
-  ignorePatterns: [             // glob-style URL patterns to skip
-    '**/admin/**',
-    '**/login',
-  ],
+  /**
+   * URL patterns to skip. Supports glob-style wildcards (*).
+   * Example: ['*?utm_*', '*/tag/*']
+   */
+  ignorePatterns: ['*/wp-admin/*', '*/cart/*'],
 
-  analyzers: [                  // run a subset; omit to run all eight
-    'onpage',
-    'technical',
-    'performance',
-  ],
-}));
+  /**
+   * Which analyzers to run. Omit to run all 8.
+   * Possible values: 'onpage' | 'technical' | 'performance' | 'images' | 
+   *                  'links' | 'content' | 'mobile' | 'schema'
+   */
+  analyzers: ['onpage', 'technical', 'performance'],
+});
+
+const auditor = new Auditor(config);
 ```
 
-`defineConfig` is an identity function that gives TypeScript inference in a config file:
-
-```ts
-// seo-audit.config.ts
-import { defineConfig } from 'seo-auditor';
-export default defineConfig({ url: 'https://example.com', maxPages: 200 });
-```
+---
 
 ## Events
 
-`Auditor` extends `EventEmitter`.
-
 ```ts
-const auditor = new Auditor({ url: 'https://example.com' });
+auditor.on('crawl:start', () => {
+  console.log('Crawler started');
+});
 
-auditor.on('crawl:start', () => console.log('crawling…'));
-auditor.on('progress', (current, total) => console.log(`${current}/${total}`));
-auditor.on('crawl:done', (total) => console.log(`${total} pages found`));
-auditor.on('page:audited', (page) => console.log(page.url, page.score));
-auditor.on('error', (err, url) => console.error(`skipped ${url}: ${err.message}`));
+auditor.on('crawl:done', (totalPages: number) => {
+  console.log(`Crawled ${totalPages} pages`);
+});
 
-const report = await auditor.run();
+auditor.on('progress', (current: number, total: number) => {
+  console.log(`Progress: ${current}/${total}`);
+});
+
+auditor.on('page:audited', (page: PageAudit) => {
+  console.log(`Audited: ${page.url}  ${page.score}/100`);
+});
+
+auditor.on('error', (err: Error, url?: string) => {
+  // Non-fatal: a single page failed. The audit continues.
+  console.warn(`Skipped ${url ?? 'unknown'}: ${err.message}`);
+});
 ```
 
-| Event | Arguments | When |
-|---|---|---|
-| `crawl:start` | — | Before the crawler begins |
-| `progress` | `(current, total)` | After each page is fetched |
-| `crawl:done` | `(totalPages)` | After all pages are fetched |
-| `page:audited` | `(page: PageAudit)` | After each page is analyzed |
-| `error` | `(err, url?)` | Non-fatal per-page error |
+---
 
 ## Report structure
 
@@ -94,16 +134,16 @@ const report = await auditor.run();
 interface AuditReport {
   siteUrl: string;
   totalPages: number;
-  siteScore: number;      // 0–100 weighted average across pages
-  grade: Grade;           // 'A' | 'B' | 'C' | 'D' | 'F'
+  siteScore: number;        // 0–100 weighted site-wide score
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
   summary: {
     errors: number;
     warnings: number;
     passes: number;
     info: number;
   };
-  pages: PageAudit[];
-  topIssues: Issue[];     // top 10 most impactful issues site-wide
+  pages: PageAudit[];       // Per-page results
+  topIssues: TopIssue[];    // Deduplicated, sorted by impact × affected pages
   auditedAt: Date;
   durationMs: number;
 }
@@ -114,119 +154,271 @@ interface PageAudit {
   loadTimeMs: number;
   issues: Issue[];
   score: number;
-  grade: Grade;
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
   auditedAt: Date;
 }
 
 interface Issue {
-  id: string;             // e.g. "missing-title-tag"
-  title: string;
-  description: string;
+  id: string;             // Stable machine-readable identifier
+  title: string;          // Short human-readable title
+  description: string;    // Full description of the problem
   severity: 'error' | 'warning' | 'pass' | 'info';
-  category: AnalyzerName;
+  category: AnalyzerName; // Which analyzer produced this issue
   affectedUrl: string;
-  fix?: string;
-  docs?: string;
-  value?: string | number;
-  expected?: string | number;
+  fix?: string;           // Actionable fix suggestion
+  docs?: string;          // Link to reference documentation
+  value?: string | number;    // Observed value
+  expected?: string | number; // Expected value
+}
+
+interface TopIssue extends Issue {
+  pageCount: number; // Number of pages where this issue was found
 }
 ```
 
-## Saving reports
+---
+
+## Generating reports
 
 ```ts
 import { Auditor, Reporter } from 'seo-auditor';
 
-const report = await new Auditor({ url: 'https://example.com' }).run();
+const auditor = new Auditor({ url: 'https://example.com' });
+const report = await auditor.run();
+
 const reporter = new Reporter();
 
-await reporter.write(report, { format: 'html',     outputPath: './audit.html' });
-await reporter.write(report, { format: 'json',     outputPath: './audit.json' });
-await reporter.write(report, { format: 'markdown', outputPath: './audit.md'   });
+// Write to disk — format inferred from extension (.html / .md / .json)
+await reporter.write(report, { outputPath: './reports/audit.html' });
+await reporter.write(report, { outputPath: './reports/audit.md' });
+await reporter.write(report, { outputPath: './reports/audit.json' });
 
-// Or serialize to a string
-const html = reporter.serialize(report, 'html');
+// Or get the serialized string directly
+const html     = reporter.serialize(report, 'html');
+const markdown = reporter.serialize(report, 'markdown');
+const json     = reporter.serialize(report, 'json');
 ```
 
-`write` creates parent directories automatically and returns the absolute path of the saved file.
+---
 
 ## Analyzers
 
-| Analyzer | What it checks |
-|---|---|
-| `onpage` | Title tag, meta description, H1, heading hierarchy, lang attribute |
-| `technical` | HTTPS, HSTS, canonical tag, robots meta/header, redirect chains, hreflang |
-| `performance` | Load time, HTML size, compression, render-blocking resources, cache headers |
-| `images` | Alt text, explicit dimensions (CLS), lazy loading, next-gen formats |
-| `links` | Internal link count, anchor text quality, total link count |
-| `content` | Word count, thin content, readability (Flesch score) |
-| `mobile` | Viewport meta, font scaling, tap target sizes |
-| `schema` | JSON-LD structured data, Open Graph tags, Twitter Card |
+### `onpage` — On-Page SEO
 
-## Scoring
+| Check | Trigger |
+|-------|---------|
+| Missing `<title>` tag | error |
+| Empty `<title>` tag | error |
+| Title too short (< 10 chars) | warning |
+| Title too long (> 60 chars) | warning |
+| Missing meta description | warning |
+| Meta description too short (< 70 chars) | warning |
+| Meta description too long (> 160 chars) | warning |
+| Missing `<h1>` | error |
+| Multiple `<h1>` tags | error |
+| Broken heading hierarchy (e.g. H1→H3 skip) | warning |
+| Missing `lang` attribute on `<html>` | warning |
 
-Each page starts at **100**. Issues deduct points (floor: 0):
+### `technical` — Technical SEO
 
-| Severity | Deduction |
-|---|---|
-| `error` | −15 pts |
-| `warning` | −5 pts |
-| `info` | −1 pt |
+| Check | Trigger |
+|-------|---------|
+| Page served over HTTP (not HTTPS) | error |
+| Missing HSTS header | warning |
+| Missing canonical tag | warning |
+| Multiple canonical tags | error |
+| `noindex` in robots meta or `X-Robots-Tag` header | warning |
+| Redirect chain longer than 2 hops | warning |
+| Non-200 final status after redirects | error |
 
-The **site score** is a weighted average — lower-scoring pages carry more weight to surface the most critical problems.
+### `performance` — Performance
 
-| Score | Grade |
-|---|---|
-| 90–100 | A |
-| 75–89 | B |
-| 60–74 | C |
-| 40–59 | D |
-| 0–39 | F |
+| Check | Trigger |
+|-------|---------|
+| Server response < 200 ms | pass |
+| Server response 200–800 ms | info |
+| Server response 800 ms–3 s | warning |
+| Server response 3–6 s | warning |
+| Server response > 6 s | error |
+| No gzip/brotli compression | warning |
+| HTML document > 1 MB | warning |
+| HTML document > 3 MB | error |
+| > 3 render-blocking stylesheets | warning |
+| Synchronous scripts in `<head>` | warning |
+| No `Cache-Control` header | info |
+
+### `content` — Content Quality
+
+| Check | Trigger |
+|-------|---------|
+| Word count < 150 words (thin content) | error |
+| Word count 150–300 words (low content) | warning |
+| Word count > 300 words | pass |
+
+### `images` — Image SEO
+
+| Check | Trigger |
+|-------|---------|
+| Missing `alt` attribute | error |
+| Missing `width` / `height` attributes (CLS risk) | warning |
+| Less than 50% of images lazy-loaded | warning |
+| Less than 50% of images in WebP/AVIF format | info |
+
+### `links` — Link Analysis
+
+| Check | Trigger |
+|-------|---------|
+| Broken internal links (4xx/5xx) | error |
+| Empty or generic anchor text ("click here") | warning |
+| External links without `rel="nofollow"` | info |
+
+### `mobile` — Mobile Friendliness
+
+| Check | Trigger |
+|-------|---------|
+| Missing viewport meta tag | error |
+| Viewport not set to `width=device-width` | warning |
+| Font size likely too small | warning |
+
+### `schema` — Structured Data
+
+| Check | Trigger |
+|-------|---------|
+| No JSON-LD structured data found | info |
+| Invalid JSON in `<script type="application/ld+json">` | error |
+| Missing `@type` property in JSON-LD | warning |
+| Missing `@context` property | warning |
+
+---
+
+## Scoring algorithm
+
+```
+page score = max(0, 100 − Σ penalty(severity))
+
+penalties: error = 15 pts, warning = 5 pts, info = 1 pt, pass = 0 pts
+
+site score = weighted average of page scores
+             (lower-scoring pages carry higher weight)
+```
+
+Grade thresholds: **A** ≥ 90, **B** ≥ 75, **C** ≥ 60, **D** ≥ 40, **F** < 40.
+
+Category weights (used for issue priority sorting in `topIssues`):
+
+| Category | Weight |
+|----------|--------|
+| `onpage` | 1.3× |
+| `technical` | 1.2× |
+| `content` | 1.0× |
+| `performance` | 1.0× |
+| `images` | 0.8× |
+| `links` | 0.8× |
+| `mobile` | 0.7× |
+| `schema` | 0.6× |
+
+---
+
+## Custom analyzers
+
+Extend `BaseAnalyzer` to plug in your own checks:
+
+```ts
+import { BaseAnalyzer, type AnalyzerContext, type Issue } from 'seo-auditor';
+
+export class OpenGraphAnalyzer extends BaseAnalyzer {
+  readonly name = 'onpage' as const; // assign to an existing category
+
+  async analyze(ctx: AnalyzerContext): Promise<Issue[]> {
+    const issues: Issue[] = [];
+
+    const ogTitle = ctx.dom.querySelector('meta[property="og:title"]');
+    if (!ogTitle) {
+      issues.push(
+        this.warning(
+          'missing-og-title',
+          'Missing og:title meta tag',
+          'Open Graph og:title is required for rich previews on social platforms.',
+          ctx.url,
+          { fix: 'Add <meta property="og:title" content="Your page title">.' },
+        ),
+      );
+    } else {
+      issues.push(this.pass('og-title-present', 'og:title is set', ctx.url));
+    }
+
+    return issues;
+  }
+}
+```
+
+The `BaseAnalyzer` helper methods (`this.error()`, `this.warning()`, `this.pass()`, `this.info()`) all accept `(id, title, description, url, extra?)`.
+
+### Using a custom analyzer
+
+Because `Auditor` builds its analyzers internally from `AnalyzerName` strings, the easiest way to inject custom analyzers is to use `ScoreEngine` directly:
+
+```ts
+import { ScoreEngine } from 'seo-auditor';
+import { OpenGraphAnalyzer } from './OpenGraphAnalyzer.js';
+
+// Run the custom analyzer against your own fetched pages
+const analyzer = new OpenGraphAnalyzer();
+const issues = await analyzer.analyze(ctx);
+
+const engine = new ScoreEngine();
+const score = engine.computePageScore(issues);
+```
+
+---
 
 ## Error handling
-
-`Auditor.run()` throws `AuditorError` for fatal startup failures. Non-fatal per-page errors are emitted via the `error` event and do not abort the audit.
 
 ```ts
 import { Auditor, AuditorError } from 'seo-auditor';
 
 try {
-  await new Auditor({ url: 'not-a-url' }).run();
+  const report = await auditor.run();
 } catch (err) {
   if (err instanceof AuditorError) {
-    // err.code: 'INVALID_URL' | 'FETCH_FAILED' | 'TIMEOUT' | 'ROBOTS_BLOCKED'
-    //         | 'NOT_HTML' | 'PARSE_ERROR' | 'PUPPETEER_UNAVAILABLE' | 'CONFIG_INVALID'
     console.error(`[${err.code}] ${err.message}`);
+    // err.code is one of:
+    //   'INVALID_URL' | 'CONFIG_INVALID' | 'FETCH_FAILED' | 'TIMEOUT' |
+    //   'ROBOTS_BLOCKED' | 'PARSE_ERROR' | 'NOT_HTML' | 'PUPPETEER_UNAVAILABLE'
   }
 }
 ```
 
-## CI integration
-
-```ts
-// seo-check.mjs
-import { Auditor } from 'seo-auditor';
-
-const report = await new Auditor({
-  url: process.env.SITE_URL,
-  maxPages: 50,
-  analyzers: ['onpage', 'technical'],
-}).run();
-
-if (report.siteScore < 70) {
-  console.error(`SEO score ${report.siteScore}/100 is below threshold`);
-  process.exit(1);
-}
-```
+---
 
 ## TypeScript
 
-Ships its own declarations — no `@types/*` needed.
+The library ships with full type declarations. No `@types/` package needed.
 
 ```ts
-import type { AuditConfig, AuditReport, PageAudit, Issue, IssueSeverity, AnalyzerName, Grade } from 'seo-auditor';
+import type {
+  AuditConfig,
+  AuditReport,
+  PageAudit,
+  Issue,
+  IssueSeverity,
+  AnalyzerName,
+  TopIssue,
+  Grade,
+} from 'seo-auditor';
 ```
+
+**Minimum TypeScript version:** 5.0. Tested through TypeScript 6.0.
+
+---
+
+## Requirements
+
+- **Node.js** ≥ 18 (uses native `fetch` via `undici`, `EventEmitter`, `URL`)
+- **ESM only** — `"type": "module"` in your `package.json`, or use `.mjs` files
+
+---
 
 ## License
 
-MIT
+MIT © Mahmudul Hasan
